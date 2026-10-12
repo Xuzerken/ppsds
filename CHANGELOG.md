@@ -10,10 +10,11 @@ artifacts published to collaborators only, never to PyPI: a version number on Py
 and can be yanked but never reused, so it is not spent on half-finished releases. The first
 version on PyPI is `0.1.0`.
 
-## [Unreleased]
+## [0.0.1] - 2026-10-15
 
-The first release: the conic-moment family of DRPP, both suboptimal predictors from the paper,
-and the gymnasium layer used to simulate ambiguity.
+**A private beta, not on PyPI.** Everything below is the first release; `0.0.1` is handed to
+collaborators through a GitHub Release so that problems are found before the version number that
+matters is spent. The first public version will be `0.1.0`, and it will contain this.
 
 ### Added
 

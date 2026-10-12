@@ -27,15 +27,26 @@ permissions:
   contents: read
 
 jobs:
-  # A version number on PyPI is permanent and can never be reused -- only yanked. So the tag and
-  # `__version__` are compared before anything is built, because a mismatch would mean either
-  # uploading a version nobody intended or failing after the artifact exists.
+  # Two questions before anything is uploaded.
+  #
+  # A version number on PyPI is permanent and can never be reused -- only yanked -- so the tag is
+  # compared with `__version__` first: a mismatch would mean either uploading a version nobody
+  # intended, or failing after the artifact already exists.
+  #
+  # The second question exists because this repository's versioning has a private phase. A `0.0.x`
+  # version is a beta handed to collaborators through a GitHub Release, and **must not reach
+  # PyPI** -- so tagging one builds the artifacts but deliberately skips publishing, rather than
+  # spending a permanent version number on something half-finished. The workflow still uploads
+  # `dist/` as an artifact, which is exactly what a beta hand-out needs.
   guard:
-    name: tag matches __version__
+    name: tag matches __version__, and may be published
     runs-on: ubuntu-latest
+    outputs:
+      publishable: ${{ steps.check.outputs.publishable }}
     steps:
       - uses: actions/checkout@v4
-      - name: Compare the tag with the package version
+      - id: check
+        name: Compare the tag with the package version
         run: |
           version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/ppsds/__init__.py)
           if [ -z "$version" ]; then
@@ -49,6 +60,19 @@ jobs:
           else
             echo "manual run, __version__=${version} (no tag to compare)"
           fi
+
+          case "$version" in
+            0.0.*)
+              echo "publishable=false" >> "$GITHUB_OUTPUT"
+              echo "::notice title=Not publishing to PyPI::ppsds ${version} is a 0.0.x beta. \
+          Betas are handed out through a GitHub Release, and a version number on PyPI is \
+          permanent, so this run only builds the artifacts -- download them from the run's \
+          artifacts to attach to the release."
+              ;;
+            *)
+              echo "publishable=true" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
 
   build:
     name: build
@@ -71,6 +95,8 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  # Manual only, and open to any version: TestPyPI is a sandbox, so rehearsing the upload path
+  # with a beta number there costs nothing and is the point of having it.
   publish-testpypi:
     name: publish to TestPyPI
     needs: build
@@ -93,10 +119,11 @@ jobs:
 
   publish-pypi:
     name: publish to PyPI
-    needs: build
+    needs: [build, guard]
     if: >-
-      github.event_name == 'push' ||
-      (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
+      needs.guard.outputs.publishable == 'true' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi'))
     runs-on: ubuntu-latest
     environment:
       name: pypi

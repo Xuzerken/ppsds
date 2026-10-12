@@ -18,6 +18,34 @@ python tools/export_public.py --target ../ppsds --commit --push
 this repository does not have, and exporting would revert it — the script says which paths and
 what to do.
 
+## Beta hand-out (the `0.0.x` line)
+
+A beta goes to collaborators, not to PyPI. A version number there is permanent, so it is not
+spent before the release is meant to be public.
+
+```bash
+# in the public clone, on main, with __version__ already at the beta number
+git tag -a v0.0.1 -m "ppsds 0.0.1 (private beta)"
+git push origin v0.0.1
+```
+
+The `publish` workflow runs, builds the sdist and the wheel, and then **deliberately does not
+publish**: it reports that a `0.0.x` version is a beta and stops short of PyPI. That is the
+guard, not a failure — see the job's notice.
+
+The artifacts are still attached to the run. Download `dist` from the workflow run's artifacts
+and attach both files to a GitHub Release cut from the tag. Then hand out the release, not the
+repository URL: whoever receives it installs with
+
+```bash
+pip install ./ppsds-0.0.1-py3-none-any.whl
+```
+
+**Invite collaborators to the release, not to the development.** The repository they can see is
+the public one. Tell them plainly to **fork it and work in the fork** rather than pushing
+branches here: everything in this repository — all branches, all open pull requests — becomes
+visible the moment it is made public, and work that is not ready to be seen must not be in it.
+
 ## 1. Confirm everything is green
 
 All workflows on `main`: `tests`, `core-only`, `lower-bounds`, `lint`, `build`, `docs`.
@@ -51,7 +79,29 @@ as well, because the README — which is the long description — tells readers 
 
 ## 4. Rehearse on TestPyPI
 
-Never rehearse this on PyPI. A version number there is permanent.
+⚠️ **Order matters here, and there is a GitHub plan constraint behind it.** The `publish` jobs
+declare `environment: pypi` / `environment: testpypi`, and PyPI's Trusted Publisher is
+configured with the same environment name — the two have to agree. But **GitHub Free can only
+configure environments in public repositories** (personal accounts need Pro, organisations need
+Team for private ones). So while the repository is still private, this rehearsal cannot go
+through the workflow, and the workflow-independent part of it is what to do first:
+
+```bash
+# build from the public clone, then rehearse the artifact itself
+rm -rf dist build && python -m build
+python -m venv /tmp/rehearse
+/tmp/rehearse/bin/pip install dist/ppsds-*.whl
+/tmp/rehearse/bin/python -c "import ppsds; print(ppsds.__version__)"
+
+# and the check that actually proves the sdist is complete: install from it and run an example
+tar -xzf dist/ppsds-*.tar.gz -C /tmp
+/tmp/rehearse/bin/pip install /tmp/ppsds-<version>/
+/tmp/rehearse/bin/python /tmp/ppsds-<version>/examples/scene1_own_environment/quickstart.py
+```
+
+Once the repository is public, create the `pypi` and `testpypi` environments (Settings →
+Environments, each with yourself as a required reviewer) and rehearse the upload path itself.
+Never rehearse an upload on PyPI. A version number there is permanent.
 
 ```bash
 python -m venv /tmp/rehearse
@@ -61,15 +111,8 @@ python -m venv /tmp/rehearse
   ppsds==<version>
 ```
 
-The extra index is required: TestPyPI does not host numpy, scipy, cvxpy or gymnasium.
-
-Then the part that actually proves the sdist is complete — run an example **from the sdist**,
-not from a checkout:
-
-```bash
-tar -xzf dist/ppsds-*.tar.gz -C /tmp
-/tmp/rehearse/bin/python /tmp/ppsds-<version>/examples/scene1_own_environment/quickstart.py
-```
+The extra index is required: TestPyPI does not host numpy, scipy, cvxpy or gymnasium. TestPyPI
+is a separate service with its own account, and its own Trusted Publisher entry.
 
 ## 5. Tag, and let CI publish
 

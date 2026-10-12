@@ -1,9 +1,12 @@
-"""ppsds — distributionally robust probabilistic prediction (DRPP) for stochastic dynamical systems.
+"""ppsds — probabilistic prediction for stochastic dynamical systems.
 
-Given a stochastic dynamical system (SDS), DRPP outputs not a point but a **predictive
-distribution**; and it guarantees that, as long as the true system lies within the ambiguity
-set you declared, the expected score of this prediction under the worst case does not fall
-below some lower bound.
+`ppsds` predicts the next state of a stochastic dynamical system (SDS) as a **predictive
+distribution** rather than a point, and ships predictors that stay honest when your model of the
+system is wrong. Predictors come in families, and the package is meant to hold more than one;
+this release implements the **distributionally robust** family (DRPP) over conic-moment ambiguity
+sets, which additionally guarantees that — as long as the true system lies within the ambiguity
+set you declared — the expected score of the prediction under the worst case does not fall below
+some lower bound.
 
 Two usage scenarios
 -------------------

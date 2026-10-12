@@ -28,8 +28,8 @@ A core module never imports the periphery, so `pip install ppsds` does not pull 
 
 ## The environment layer
 
-Serves the "simulate your own ambiguity" path only. If you are applying DRPP to an environment
-you already have, none of this is needed.
+Serves the "simulate your own ambiguity" path only. If you are applying a predictor to an
+environment you already have, none of this is needed.
 
 ::: ppsds.environment.base
 

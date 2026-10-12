@@ -1,7 +1,7 @@
 # Getting Started
 
-This page takes you from a fresh install to DRPP predicting on **your own** gymnasium
-environment. The path is short — you declare three things and run a loop — but one precondition
+This page takes you from a fresh install to a predictor running on **your own** gymnasium
+environment — in this release, the distributionally robust family. The path is short — you declare three things and run a loop — but one precondition
 is worth stating before anything else.
 
 > **The guarantee has a precondition: the ambiguity set you declare must contain the true

@@ -3,8 +3,8 @@
 Every example lives under
 [`examples/`](https://github.com/Xuzerken/ppsds/tree/main/examples), split into two scenes:
 
-- **`scene1_own_environment/`** — DRPP on a gymnasium environment you already have. This is the
-  main path: three examples of increasing realism.
+- **`scene1_own_environment/`** — predictors on a gymnasium environment you already have. This is
+  the main path: three examples of increasing realism.
 - **`scene2_simulated_ambiguity/`** — declare an ambiguity set by hand, generate a stochastic
   dynamical system from it, and compare the predictors on it. A single-process teaching example,
   plus a multi-process batch runner.

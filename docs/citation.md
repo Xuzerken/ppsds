@@ -1,24 +1,13 @@
 # Citation
 
-## The paper
-
-```bibtex
-@article{xuDRPP,
-  title   = {Distributionally Robust Probabilistic Prediction for Stochastic Dynamical Systems},
-  author  = {Xu, Tao and He, Jianping},
-  journal = {IEEE Transactions on Automatic Control}
-}
-```
-
 ## The software
 
-If you used the implementation itself, citing the paper is the important part; a software
-citation is a welcome addition. GitHub's **Cite this repository** button reads
-[`CITATION.cff`](https://github.com/Xuzerken/ppsds/blob/main/CITATION.cff) and produces:
+If you use `ppsds`, cite the software. GitHub's **Cite this repository** button reads
+[`CITATION.cff`](https://github.com/Xuzerken/ppsds/blob/main/CITATION.cff) and produces this:
 
 ```bibtex
 @software{ppsds,
-  title   = {ppsds: distributionally robust probabilistic prediction for stochastic dynamical systems},
+  title   = {ppsds: probabilistic prediction for stochastic dynamical systems},
   author  = {Xu, Tao and He, Jianping},
   license = {MIT},
   url     = {https://github.com/Xuzerken/ppsds}
@@ -28,7 +17,23 @@ citation is a welcome addition. GitHub's **Cite this repository** button reads
 An archived release with a DOI will be added here once the first version is tagged, so that a
 citation can point at exactly the code that produced a result.
 
-## License
+## References
 
-[MIT](https://github.com/Xuzerken/ppsds/blob/main/LICENSE) — use it freely, keep the copyright
-and license notice.
+`ppsds` is not the artifact of a single paper. It is a library for probabilistic prediction that
+implements predictors from research, and it is intended to carry predictors from more than one
+paper. Each predictor's implementation records which reference it follows.
+
+### Distributionally robust prediction over conic-moment ambiguity sets
+
+The family implemented in this release — the predictors `EigDrpp` and `NoiseDrpp`, the
+conic-moment ambiguity sets, and the worst-case bounds in `ppsds.ambiguity`.
+
+```bibtex
+@article{xuDRPP,
+  title   = {Distributionally Robust Probabilistic Prediction for Stochastic Dynamical Systems},
+  author  = {Xu, Tao and He, Jianping},
+  journal = {IEEE Transactions on Automatic Control}
+}
+```
+
+See [Concepts](concepts.md) for what this family optimizes and what its guarantee costs.

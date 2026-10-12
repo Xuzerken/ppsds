@@ -1,33 +1,39 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite both the paper and the software itself."
-title: "ppsds: distributionally robust probabilistic prediction for stochastic dynamical systems"
+message: "If you use this software, please cite it using the metadata in this file."
+title: "ppsds: probabilistic prediction for stochastic dynamical systems"
 abstract: >-
-  Reference implementation of DRPP: probabilistic prediction for stochastic dynamical systems
-  that is optimal against the worst system permitted by a declared ambiguity set, with
-  worst-case guarantees on the expected score.
+  A Python library for probabilistic prediction on stochastic dynamical systems. It predicts the
+  next state of a system as a distribution rather than a point, and implements distributionally
+  robust predictors over conic-moment ambiguity sets -- which optimize for the worst system an
+  ambiguity set allows and come with worst-case guarantees on the expected score -- alongside
+  nominal and noise-robust baselines. Further predictor families are intended.
 type: software
 license: MIT
 repository-code: "https://github.com/Xuzerken/ppsds"
-url: "https://github.com/Xuzerken/ppsds"
+url: "https://xuzerken.github.io/ppsds/"
+version: 0.0.1
 keywords:
-  - distributionally robust optimization
   - probabilistic prediction
   - stochastic dynamical systems
+  - distributionally robust optimization
   - conic moment
 authors:
   - family-names: Xu
     given-names: Tao
   - family-names: He
     given-names: Jianping
-preferred-citation:
-  type: article
-  title: "Distributionally Robust Probabilistic Prediction for Stochastic Dynamical Systems"
-  authors:
-    - family-names: Xu
-      given-names: Tao
-    - family-names: He
-      given-names: Jianping
-  journal: "IEEE Transactions on Automatic Control"
-  # To fill in once the issue is assigned: volume, issue, pages, year, doi.
-  # The DOI is what makes the citation resolvable, so it is worth adding even though every
-  # field above is already enough for a reader to find the paper.
+# The software is the thing being cited above. The papers the predictors implement are
+# **references** rather than a `preferred-citation`, because this package is not the artifact of
+# a single paper: it holds a family of predictors, and more than one paper contributes to it.
+references:
+  - type: article
+    title: "Distributionally Robust Probabilistic Prediction for Stochastic Dynamical Systems"
+    authors:
+      - family-names: Xu
+        given-names: Tao
+      - family-names: He
+        given-names: Jianping
+    journal: "IEEE Transactions on Automatic Control"
+    # To fill in once the issue is assigned: volume, issue, pages, year, doi.
+    # The DOI is what makes a citation resolvable, so it is worth adding even though the fields
+    # above are already enough for a reader to find the paper.

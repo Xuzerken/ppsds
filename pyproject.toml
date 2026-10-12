@@ -1,4 +1,8 @@
-# ppsds -- the Python package for DRPP (distributionally robust probabilistic prediction).
+# ppsds -- probabilistic prediction for stochastic dynamical systems.
+#
+# The package is the library, not the artifact of one paper: predictors come in families, and
+# DRPP over conic-moment ambiguity sets is the family this release implements. Keep that
+# distinction in the metadata -- `description` is the summary line on PyPI.
 #
 # Layout: this repository uses a src layout. `src/ppsds/` is the **distribution package**
 # and the only thing under `src/`. The experiment/plotting periphery that used to live in a
@@ -20,7 +24,7 @@ build-backend = "hatchling.build"
 [project]
 name = "ppsds"
 dynamic = ["version"]          # single source of truth: src/ppsds/__init__.py __version__
-description = "Distributionally robust probabilistic prediction for stochastic dynamical systems (DRPP)"
+description = "Probabilistic prediction for stochastic dynamical systems"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Tao Xu" }, { name = "Jianping He" }]

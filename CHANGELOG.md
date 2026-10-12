@@ -30,8 +30,9 @@ matters is spent. The first public version will be `0.1.0`, and it will contain 
 - `ppsds.dynamics` — robotic-arm models and system identification.
 - `ppsds.experiment` and `ppsds.visualization` — a multiprocess experiment driver with a
   validating cache, and the paper's figures. These need the optional `experiments` extra.
-- Examples for applying DRPP to an environment you already have (`examples/scene1_own_environment/`)
-  and for building a simulated one (`examples/scene2_simulated_ambiguity/`).
+- Examples for applying a predictor to an environment you already have
+  (`examples/scene1_own_environment/`) and for building a simulated one
+  (`examples/scene2_simulated_ambiguity/`).
 
 ### Known limitations
 

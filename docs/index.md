@@ -1,14 +1,13 @@
 # ppsds
 
-**Distributionally robust probabilistic prediction for stochastic dynamical systems.**
+**Probabilistic prediction for stochastic dynamical systems.**
 
-`ppsds` turns "predict the next state" from a point estimate into a predictive distribution
-**with a worst-case guarantee**: as long as the true system lies inside the ambiguity set you
-declared, the expected score of the prediction cannot fall below a stated lower bound.
+`ppsds` predicts the next state of a stochastic dynamical system as a **distribution** rather
+than a point — and it ships predictors that stay honest when your model of the system is wrong.
 
-This is the reference implementation accompanying T. Xu and J. He, *Distributionally Robust
-Probabilistic Prediction for Stochastic Dynamical Systems*, IEEE Transactions on Automatic
-Control.
+Predictors come in families, and the package is built to hold more than one. This release
+implements the **distributionally robust** family (**DRPP**) over **conic-moment** ambiguity
+sets, alongside the ordinary nominal and noise-robust baselines that it can be measured against.
 
 ```
 pip install ppsds
@@ -19,40 +18,41 @@ pip install ppsds
 | | |
 |---|---|
 | **[Getting Started](getting-started.md)** | install it, run something, put it on your own system, and the pitfalls |
-| **[Concepts](concepts.md)** | what DRPP optimizes, what the worst case ranges over, what the guarantee costs |
-| **[Examples](examples.md)** | every example in the repository, with the command and the real output |
+| **[Concepts](concepts.md)** | what is optimized, what the worst case may touch, what the guarantee costs |
+| **[Examples](examples.md)** | every example, with the command and the real output |
 | **[API](api.md)** | generated from the docstrings |
-| **[Citation](citation.md)** | how to cite the paper and the software |
+| **[Citation](citation.md)** | the software citation, and the references it implements |
 
-## The short version
+If you only read one page and you intend to rely on the guarantee, make it
+[Concepts](concepts.md): the guarantee is conditional, and the condition is a declaration you
+write, not something the library can check for you.
 
-An ordinary predictor trusts its own model. That is hard to beat while the system behaves as
-expected, and it is **overconfident** the moment it does not: the model drifts, the noise has a
-different covariance, and the prediction is quietly too narrow.
+## What "distributionally robust" changes
 
-DRPP changes the objective — instead of the nominal model, it optimizes for the worst system
-allowed by the set you declared:
+An ordinary predictor trusts the model it was given. That is hard to beat while the system
+behaves as expected, and it is **overconfident** the moment it does not: the dynamics drift, the
+noise has a different covariance, and the prediction is quietly too narrow.
+
+DRPP changes the objective. Instead of the nominal model, it optimizes for the worst system the
+ambiguity set allows — the predictive distribution whose *worst-case* expected score is as high
+as it can be:
 
 ```
-    maximize over predictors p_hat,
-    minimize over distributions P in the ambiguity set,
-        E_P[ score(p_hat) ]
+    max over the predictive distribution p̂   of   min over P in the ambiguity set   of   E_P[ score(p̂) ]
 ```
 
-The price is a little average performance. What it buys is a floor that holds in the worst case.
-
-**The part that surprises people:** a worse model does not by itself make DRPP win. If your
-declared covariance came from your own residuals, the ordinary predictor is already calibrated to
-the errors it will meet. DRPP pays off when the declaration is *optimistic* — and too little
-identification data is the most common reason for that. [Concepts](concepts.md) explains why, and
-the [examples](examples.md) measure both regimes.
+The price is a little average performance — a more conservative predictive covariance. What it
+buys is a floor that holds in the worst case, and that floor is what the
+[Concepts](concepts.md) page is about, including the part that surprises people: **a predictor
+does not become better by having a worse model**, and the declaration matters more than the
+model's accuracy.
 
 ## Two ways to use it
 
 - **You already have a gymnasium environment.** Declare a nominal model and an ambiguity set, and
   let a predictor run. This is the main path, and it does not require the environment layer at
   all.
-- **You want to simulate your own ambiguity** — to build a benchmark, or to reproduce the paper.
+- **You want to simulate your own ambiguity** — to build a benchmark, or to reproduce a paper.
   Then you also use the environment layer, which supplies the ambiguity set and a choice of
   dynamics modes, including an adversarial one.
 

@@ -1,0 +1,61 @@
+name: docs
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build the site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      # `mkdocstrings` imports the package to read its docstrings, so this is an install, not
+      # just a docs-tooling install.
+      - name: Install
+        run: pip install -e ".[docs]"
+
+      # `--strict` turns every warning into a failure, which is the point: a link between pages
+      # that no longer resolves, or a nav entry pointing at a page that was renamed, fails here
+      # instead of shipping a site with a hole in it. `mkdocs.yml` also sets `strict: true`, so
+      # the two agree whichever way it is invoked.
+      - name: Build
+        run: mkdocs build --strict
+
+      - name: Check the published Markdown
+        run: python tools/check_links.py --pypi-readme
+
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: site/
+
+  # A private repository cannot serve GitHub Pages on the free plan, so this job waits for the
+  # repository to become public rather than failing red on every push in the meantime. The build
+  # above still runs, which is the part that catches mistakes.
+  deploy:
+    name: deploy to GitHub Pages
+    needs: build
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      github.event.repository.visibility == 'public'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

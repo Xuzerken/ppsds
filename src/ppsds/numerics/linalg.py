@@ -1,7 +1,7 @@
 """Small numerical utilities that keep behavior consistent across numpy versions.
 
-Why :func:`eig_real` is needed
-------------------------------
+Why ``eig_real`` is needed
+--------------------------
 What dtype ``np.linalg.eig`` returns for a **real** matrix is not consistent across numpy
 builds: for the same real symmetric covariance matrix, numpy 2.3.5 returns ``float64``
 while 2.5.4 returns ``complex128`` (imaginary parts exactly 0, real parts **bit-for-bit

@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a capability, or a different way to do something.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A new ambiguity-set family is a **new module beside the existing one**, not a branch
+        inside it — the module path states the assumption and the family, and a new one
+        simply gets its own path. Saying which layer you mean makes a proposal much easier
+        to place.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and where the package gets in the way.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: The proposal
+      description: >-
+        What you would like to see. A sketch of the interface is welcome; it does not have to
+        be settled.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: willing
+    attributes:
+      label: Would you be willing to implement it?
+      options:
+        - "Yes"
+        - "Yes, with guidance"
+        - "No"
+    validations:
+      required: true

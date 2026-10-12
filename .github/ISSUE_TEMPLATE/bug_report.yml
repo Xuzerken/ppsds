@@ -1,0 +1,63 @@
+name: Bug report
+description: Something crashed, or produced a number you believe is wrong.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two things decide how fast a report here can be acted on: a **minimal
+        reproduction**, and the **versions**. The failures this package has hit were both
+        specific to a numpy or cvxpy version, so a report without versions is often not
+        reproducible at all.
+
+        For anything security-sensitive, use the private advisory form instead:
+        https://github.com/Xuzerken/ppsds/security/advisories/new
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: >-
+        What you ran, what you expected, and what you got. Say which it is: a crash, or a
+        number you believe is wrong. A wrong number is the more serious of the two, and the
+        harder one to notice.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: >-
+        The smallest self-contained script that shows the problem. Depending on a fixed seed
+        and being runnable as-is counts for more than a description of the code.
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Full traceback
+      description: >-
+        Only if it raised. Paste all of it — the last line alone usually hides where in the
+        stack the failure actually came from.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: >-
+        Paste the output of the command below, and add your operating system and how you
+        installed ppsds (from PyPI, or from a checkout).
+      value: |
+        Operating system:
+
+        python -c "import numpy, scipy, cvxpy, gymnasium, sys; print(sys.version); print(numpy.__version__, scipy.__version__, cvxpy.__version__, gymnasium.__version__)"
+      render: shell
+    validations:
+      required: true

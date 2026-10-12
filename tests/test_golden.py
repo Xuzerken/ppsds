@@ -80,12 +80,25 @@ def test_predictions_match_the_fixture(recorded, actual, name):
 
 @pytest.mark.parametrize('name', _golden.PREDICTOR_NAMES)
 def test_predictive_covariances_are_valid_distributions(actual, name):
-    """A log score is only defined for a genuine density, so this has to hold exactly."""
+    """A log score is only defined for a genuine density, so these have to hold.
+
+    ⚠️ **Symmetry holds up to rounding, and that is all that can be asked for.** Eig-DRPP's
+    predictive covariance is rebuilt as ``v @ diag(lamb) @ v.T``, which is symmetric in exact
+    arithmetic but not bit-for-bit: the two off-diagonal entries are sums accumulated in a
+    different order. This assertion originally demanded ``atol=0`` and passed on the development
+    machine while failing on every CI runner by exactly 1 ULP (2.2e-16) -- a test that decided
+    by BLAS rather than by code, and the first thing the CI ever caught.
+
+    The tolerance is ``1e-12`` relative to the largest entry: four orders of magnitude above the
+    rounding it must tolerate, and far below a genuine asymmetry (a transposed index moves these
+    entries by their whole value, not by their last bits).
+    """
     for i, Sigma in enumerate(actual['predictors'][name]['Sigma_pred']):
         assert np.all(np.isfinite(Sigma)), f'{name}: non-finite covariance at step {i}'
+        scale = max(1.0, float(np.abs(Sigma).max()))
         np.testing.assert_allclose(
-            Sigma, Sigma.T, rtol=0, atol=0,
-            err_msg=f'{name}: covariance not symmetric at step {i}')
+            Sigma, Sigma.T, rtol=0, atol=1e-12 * scale,
+            err_msg=f'{name}: covariance is not symmetric at step {i}')
         assert np.linalg.eigvalsh(Sigma).min() > 0, \
             f'{name}: covariance not positive definite at step {i}'
         assert np.all(np.isfinite(actual['predictors'][name]['x_pred'][i]))

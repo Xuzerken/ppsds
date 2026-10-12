@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://xuzerken.github.io/ppsds/
+    about: Guides, the API reference, and worked examples.
+  - name: How to contribute
+    url: https://github.com/Xuzerken/ppsds/blob/main/CONTRIBUTING.md
+    about: Development setup, the test suite, and the rule that a change must not move a number.
+  - name: Report a vulnerability, privately
+    url: https://github.com/Xuzerken/ppsds/security/advisories/new
+    about: For a security issue, or any other report that should not be public.

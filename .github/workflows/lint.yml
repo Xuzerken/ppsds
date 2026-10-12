@@ -1,0 +1,30 @@
+name: lint
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ruff:
+    name: ruff check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install ruff
+
+      # `select` is pinned to ruff's own defaults in `pyproject.toml`, so a new ruff release
+      # cannot turn this red on its own.
+      #
+      # `ruff format --check` is deliberately **not** run: over this codebase it would produce a
+      # wide stylistic diff, and a first release should not be made of that. Adopting the
+      # formatter is a 0.2.0 decision.
+      - run: ruff check .

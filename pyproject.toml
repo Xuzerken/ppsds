@@ -1,0 +1,126 @@
+# ppsds -- the Python package for DRPP (distributionally robust probabilistic prediction).
+#
+# Layout: this repository uses a src layout. `src/ppsds/` is the **distribution package**
+# and the only thing under `src/`. The experiment/plotting periphery that used to live in a
+# sibling `src/lab/` was merged into `src/ppsds/{experiment,visualization,control_policy}/`,
+# so it now ships with the package -- but its dependencies (matplotlib / pandas / seaborn /
+# tqdm) are declared as the optional extra `experiments`.
+#
+# Version: `src/ppsds/__init__.py` holds `__version__`, the single source of truth (read
+# dynamically below). Semantics of the 0.x series: `0.0.x` are private beta artifacts that
+# are never uploaded to PyPI; `0.1.0` is the first public release.
+#
+# `requires-python` is the lowest version the syntax needs; the CI test matrix is what makes
+# that claim true, so it starts at that same version.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ppsds"
+dynamic = ["version"]          # single source of truth: src/ppsds/__init__.py __version__
+description = "Distributionally robust probabilistic prediction for stochastic dynamical systems (DRPP)"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Tao Xu" }, { name = "Jianping He" }]
+license = "MIT"                # SPDX identifier; full text in the repository-root LICENSE
+license-files = ["LICENSE"]
+keywords = [
+    "distributionally robust",
+    "probabilistic prediction",
+    "conic moment",
+    "stochastic dynamical systems",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = [
+    # The lower bounds are the versions this repository has been tested against
+    # (see environment.yml).
+    "numpy>=2.0",
+    "scipy>=1.14",
+    # cvxpy >= 1.6, not >= 1.5: cvxpy only gained numpy 2 support in the 1.5.2/1.6 line, so a
+    # lower bound of 1.5 lets a resolver legally pick a pair that cannot import together.
+    "cvxpy>=1.6",
+    "gymnasium>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Xuzerken/ppsds"
+Repository = "https://github.com/Xuzerken/ppsds"
+Documentation = "https://xuzerken.github.io/ppsds/"
+Issues = "https://github.com/Xuzerken/ppsds/issues"
+Changelog = "https://github.com/Xuzerken/ppsds/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+# The periphery needed to reproduce the paper's experiments and figures:
+# `ppsds.experiment` and `ppsds.visualization`. **The core algorithm code (ambiguity /
+# probabilistic_predictor / environment) never touches these**, so `import ppsds` does not
+# pull them into the dependency closure.
+experiments = [
+    "matplotlib>=3.8",
+    "pandas>=2.0",
+    "seaborn>=0.13",
+    "tqdm>=4.60",
+]
+dev = [
+    "build",
+    "pytest",
+    "readme_renderer",
+    "ruff",
+    "twine",
+]
+
+[tool.hatch.version]
+path = "src/ppsds/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ppsds"]
+
+[tool.hatch.build.targets.sdist]
+# The sdist carries the examples and the tests alongside the package. The README (which is the
+# long description) tells readers to run `examples/.../quickstart.py`, so without them an sdist
+# consumer -- `pip download --no-binary :all:`, conda-forge, a distro packager -- receives
+# instructions that point at nothing. The wheel stays package-only.
+#
+# The **docs tree is deliberately not shipped**. It cannot ever be self-contained here: the
+# contributor guide is excluded on purpose (it is written for a collaborator's unpublished
+# method, named throughout), so the remaining tutorials would link at a file that is not in the
+# archive. Documentation is delivered by the README (GitHub-absolute links, since PyPI resolves
+# relative ones against the project page) and by the documentation site.
+include = [
+    "/src/ppsds",
+    "/examples",
+    "/tests",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: long-running numerical checks (deselect with '-m \"not slow\"')",
+    "packaging: builds and installs distribution artifacts (deselect with '-m \"not packaging\"')",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests", "examples", "tools"]
+
+[tool.ruff.lint]
+# Pinned to ruff's own defaults so that a new ruff release cannot turn CI red on its own.
+# `ruff format` is deliberately **not** enforced yet: run over this codebase it would produce
+# a large stylistic diff, which is not what a first release should be made of.
+select = ["E4", "E7", "E9", "F"]

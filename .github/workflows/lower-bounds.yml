@@ -1,0 +1,41 @@
+name: lower-bounds
+
+# Proves that the dependency floors in `pyproject.toml` are real.
+#
+# The floors are claims: `numpy>=2.0`, `scipy>=1.14`, `cvxpy>=1.6`, `gymnasium>=1.0`,
+# `requires-python>=3.10`. Installing the *latest* of everything, as the test matrix does, can
+# never falsify a floor -- only installing the floor itself can. (The cvxpy floor is the one this
+# job was written for: 1.5 does not support numpy 2, so a lower bound of 1.5 would have let a
+# resolver legally assemble a pair that cannot import together.)
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  floors:
+    name: declared floors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'        # the floor of requires-python
+
+      - name: Install exactly the declared floors
+        run: |
+          pip install "numpy==2.0.*" "scipy==1.14.*" "cvxpy==1.6.*" "gymnasium==1.0.*" pytest
+
+      - name: Install the package without touching them
+        run: pip install --no-deps -e .
+
+      - name: Report what was actually resolved
+        run: pip list --format=columns | grep -iE 'numpy|scipy|cvxpy|gymnasium'
+
+      - name: Test suite against the floors
+        run: pytest -m "not slow and not packaging" -q

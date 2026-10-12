@@ -1,0 +1,112 @@
+name: publish
+
+# Publishing, with no long-lived credential anywhere.
+#
+# PyPI Trusted Publishing exchanges a short-lived OIDC token for a project-scoped upload token,
+# so there is no API token in the repository or in secrets -- nothing to leak, and nothing to
+# rotate. The one-time setup on the PyPI side (Manage -> Publishing) trusts exactly:
+#
+#     owner: Xuzerken   repository: ppsds   workflow: publish.yml   environment: pypi
+#
+# The `pypi` and `testpypi` environments are what make the tag-to-version gate meaningful: bind
+# them to a required reviewer in the repository settings and a tag push cannot publish on its
+# own.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Where to publish this manual run
+        type: choice
+        options: [testpypi, pypi]
+        default: testpypi
+
+permissions:
+  contents: read
+
+jobs:
+  # A version number on PyPI is permanent and can never be reused -- only yanked. So the tag and
+  # `__version__` are compared before anything is built, because a mismatch would mean either
+  # uploading a version nobody intended or failing after the artifact exists.
+  guard:
+    name: tag matches __version__
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare the tag with the package version
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/ppsds/__init__.py)
+          if [ -z "$version" ]; then
+            echo "could not read __version__ from src/ppsds/__init__.py" >&2
+            exit 1
+          fi
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            echo "tag=${tag}  __version__=${version}"
+            test "${tag}" = "${version}"
+          else
+            echo "manual run, __version__=${version} (no tag to compare)"
+          fi
+
+  build:
+    name: build
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install build twine
+      - run: |
+          rm -rf dist build
+          python -m build
+          python -m twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish-testpypi:
+    name: publish to TestPyPI
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/ppsds
+    permissions:
+      id-token: write          # job level, not workflow level: only this job needs the token
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    name: publish to PyPI
+    needs: build
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/ppsds
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

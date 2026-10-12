@@ -1,0 +1,55 @@
+name: core-only
+
+# The dependency-closure boundary, checked the honest way.
+#
+# `ppsds` is one distribution with two layers inside it: the core (ambiguity / dynamics /
+# probabilistic_predictor / environment / numerics / scoring_rule / control_policy), which needs
+# only numpy, scipy, cvxpy and gymnasium, and the experimental periphery (experiment /
+# visualization), which additionally needs matplotlib, pandas, seaborn and tqdm and is declared
+# as the optional extra `experiments`.
+#
+# `tests/test_import_hygiene.py` asserts that boundary statically and at runtime, but it does so
+# in an environment where the extra happens to be installed -- which can only ever prove "the
+# core does not import them *yet*". This job installs the package **without** the extra, which is
+# the only way to prove that a plain `pip install ppsds` works.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-only:
+    name: no [experiments] extra
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install without the experimental extra
+        run: pip install -e ".[dev]"
+
+      - name: The extra really is absent
+        run: >-
+          python -c "import importlib.util as u;
+          present=[n for n in ('matplotlib','pandas','seaborn','tqdm') if u.find_spec(n) is not None];
+          assert not present, f'installed but should not be: {present}';
+          print('the experimental extra is absent')"
+
+      - name: Import hygiene
+        run: pytest tests/test_import_hygiene.py -q
+
+      # Everything except the packaging tests, which need `build`. The test that drives the
+      # experiment runner skips itself when tqdm is missing rather than failing.
+      - name: The core stands on its own
+        run: pytest -m "not packaging" -q
+
+      - name: A core-only workflow actually runs
+        run: python examples/scene1_own_environment/quickstart.py

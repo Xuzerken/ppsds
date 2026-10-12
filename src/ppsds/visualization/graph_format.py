@@ -1,0 +1,11 @@
+def set_figure_formats(ax, label_fontsize=18, legend_fontsize=14, tick_fontsize=18, ylim=[-14,-2]):
+    ax.set_xlabel('time step',fontsize=label_fontsize)
+    ax.set_ylabel("average score",fontsize=label_fontsize)
+    ax.legend(loc='lower left',fontsize=legend_fontsize)
+    # ax.set_ylim(ylim[0], ylim[1])
+    # ax.yaxis.set_ticks(np.arange(yticks_params[k][0], yticks_params[k][1], 0.2))
+    ax.xaxis.set_tick_params(labelsize=tick_fontsize)
+    ax.yaxis.set_tick_params(labelsize=tick_fontsize)
+    ax.grid(which='major', color='#DDDDDD', linewidth=0.8)
+    ax.grid(which='minor', color='#EEEEEE', linestyle=':', linewidth=0.5)
+    ax.minorticks_on()

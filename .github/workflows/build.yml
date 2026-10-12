@@ -1,0 +1,65 @@
+name: build
+
+# Builds the artifacts, checks that they are acceptable to PyPI, and then uses them.
+#
+# The rendering check is the interesting one: `twine check` validates the metadata but not how
+# the README renders, and PyPI does **not** render LaTeX or resolve relative links. A README
+# full of `$$...$$` and `docs/...` links looks fine on GitHub and turns into a wall of raw
+# syntax and 404s on the project page -- a defect that is invisible until after the upload,
+# when the version can no longer be withdrawn. So the README is rendered here, before tagging.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[experiments,dev]"
+
+      - name: Build and check the metadata
+        run: |
+          rm -rf dist build
+          python -m build
+          python -m twine check dist/*
+
+      # Advisory, not a gate: `readme_renderer` reports warnings for constructs that are
+      # acceptable but render differently on PyPI, and failing the build on those would be
+      # noise. It is here so that a *break* is visible in the log.
+      - name: Render the README the way PyPI will (advisory)
+        continue-on-error: true
+        run: python -m readme_renderer README.md > /dev/null
+
+      - name: Show what would actually be uploaded
+        run: |
+          echo '=== wheel ==='
+          unzip -l dist/*.whl
+          echo
+          echo '=== sdist ==='
+          tar -tzf dist/*.tar.gz
+
+      # These assert the contents above mechanically, including that nothing private is inside
+      # and that the wheel's payload imports on its own.
+      - name: Distribution-artifact tests
+        run: pytest tests/test_packaging.py -q
+
+      - name: Keep the artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error

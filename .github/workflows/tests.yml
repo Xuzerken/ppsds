@@ -1,0 +1,56 @@
+name: tests
+
+# The matrix is what makes `requires-python = ">=3.10"` an honest claim rather than a guess:
+# before this workflow existed the package had only ever been run on 3.12.
+#
+# Coverage limits worth stating plainly: the hosted runners are x86_64 and Linux/macOS/Windows,
+# so the development machine's linux-aarch64 and WSL are **not** covered here and can only be
+# checked locally. Only one Python version runs on Windows, as a floor on path and line-ending
+# assumptions rather than as a real matrix.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: py${{ matrix.python-version }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    # One example ends with `plt.show()`. On a headless runner matplotlib would pick a
+    # non-interactive backend on its own, but leaving that to autodetection makes whether the
+    # job blocks depend on the runner image. Pin it.
+    env:
+      MPLBACKEND: Agg
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+        include:
+          - os: windows-latest
+            python-version: '3.12'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[experiments,dev]"
+
+      - name: Test suite
+        run: pytest -m "not slow and not packaging"
+
+      # The two heavier examples identify a model from rollouts of an off-the-shelf gymnasium
+      # environment (Acrobot is a 6-dimensional chaotic system), which costs tens of seconds --
+      # too slow for the inner loop, but they are the entry points the README sends readers to.
+      # So they run once, on one configuration.
+      - name: Slow end-to-end examples
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: pytest -m "slow"

@@ -53,5 +53,5 @@ modes this package has hit were both specific to a numpy or cvxpy version, so st
 versions; the issue form asks for them.
 
 There is no bug bounty and no response-time commitment. This is research software maintained
-alongside the paper it implements. Reports are read, and a reproducible one is usually quick to
+alongside the research it implements. Reports are read, and a reproducible one is usually quick to
 assess — it either moves a number or it does not.

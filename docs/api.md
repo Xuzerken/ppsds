@@ -1,8 +1,8 @@
 # API reference
 
 Generated from the docstrings in the source, so this page cannot drift from the code. The
-module path states the scope layer by layer — `ambiguity/additive_drift/conic_moment` reads as
-*assumption* (additive drift) / *family* (conic moment) — which is why the class names need not
+module path states the scope layer by layer: `ambiguity/additive_drift/conic_moment` reads as
+*assumption* (additive drift) / *family* (conic moment), which is why the class names need not
 repeat it.
 
 Two layers live inside the one package, and it matters which one you are importing:
@@ -14,7 +14,7 @@ Two layers live inside the one package, and it matters which one you are importi
 
 A core module never imports the periphery, so `pip install ppsds` does not pull matplotlib in.
 
-## Predictors — the paper's contribution
+## Predictors: the DRPP over conic-moment ambiguity sets
 
 ::: ppsds.probabilistic_predictor.drpp.additive_drift.conic_moment
 

@@ -86,7 +86,9 @@ honest way.
 - **Code is in English** — comments, docstrings, warnings, exception messages, example output.
 - **Module paths carry meaning.** `ambiguity/additive_drift/conic_moment` reads as
   *assumption* / *family*. A new ambiguity-set family is a new module beside the existing one,
-  not a branch inside it, and the same holds for the adversarial dynamics modes.
+  not a branch inside it, and the same holds for the adversarial dynamics modes. The
+  [developer guide](https://xuzerken.github.io/ppsds/extending/) walks through that end to end,
+  including what each layer expects from a new family.
 - **Errors are loud.** A wrong `sds_params` key raises and names the accepted keys; a
   `spawn` start method raises rather than producing wrong results. Please keep it that way: the
   failures this package has had to fix were mostly silent ones.

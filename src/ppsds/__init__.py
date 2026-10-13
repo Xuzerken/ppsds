@@ -2,11 +2,12 @@
 
 `ppsds` predicts the next state of a stochastic dynamical system (SDS) as a **predictive
 distribution** rather than a point, and ships predictors that stay honest when your model of the
-system is wrong. Predictors come in families, and the package is meant to hold more than one;
-this release implements the **distributionally robust** family (DRPP) over conic-moment ambiguity
-sets, which additionally guarantees that — as long as the true system lies within the ambiguity
-set you declared — the expected score of the prediction under the worst case does not fall below
-some lower bound.
+system is wrong. DRPP -- *distributionally robust probabilistic prediction* -- is one **kind** of
+probabilistic predictor, not the definition of the library: **for each family of ambiguity sets
+there is a DRPP of its own**. This release implements the one for **conic-moment** ambiguity sets,
+on an **additive-drift** system; it additionally guarantees that -- as long as the true system
+lies within the ambiguity set you declared -- the expected score under the worst case does not
+fall below some lower bound.
 
 Two usage scenarios
 -------------------
@@ -30,7 +31,7 @@ Submodules
 :mod:`ppsds.ambiguity`                    ambiguity sets, layered by "assumption / family"
                                           (``additive_drift/conic_moment``)
 :mod:`ppsds.dynamics`                     the object being predicted: robotic-arm models + system identification
-:mod:`ppsds.probabilistic_predictor`      probabilistic predictors (the paper's core algorithmic contribution)
+:mod:`ppsds.probabilistic_predictor`      probabilistic predictors; one kind per family of ambiguity sets (this release: DRPP over conic-moment sets)
 :mod:`ppsds.scoring_rule`                 logarithmic scoring rule
 :mod:`ppsds.environment`                  Gymnasium environment layer (**serves Scene 2 only**)
 :mod:`ppsds.numerics`                     small numerical utilities (``linalg`` / ``random_variables``)

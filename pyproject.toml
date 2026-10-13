@@ -1,8 +1,9 @@
 # ppsds -- probabilistic prediction for stochastic dynamical systems.
 #
-# The package is the library, not the artifact of one paper: predictors come in families, and
-# DRPP over conic-moment ambiguity sets is the family this release implements. Keep that
-# distinction in the metadata -- `description` is the summary line on PyPI.
+# The package is the library, not the artifact of one paper. DRPP is one KIND of probabilistic
+# predictor, and for each family of ambiguity sets there is a DRPP of its own; this release
+# implements the conic-moment one. Keep that distinction in the metadata -- `description` is the
+# summary line on PyPI.
 #
 # Layout: this repository uses a src layout. `src/ppsds/` is the **distribution package**
 # and the only thing under `src/`. The experiment/plotting periphery that used to live in a

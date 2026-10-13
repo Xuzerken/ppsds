@@ -1,17 +1,31 @@
-# ppsds
-
-**Probabilistic prediction for stochastic dynamical systems.**
+# ppsds: probabilistic prediction for stochastic dynamical systems
 
 `ppsds` predicts the next state of a stochastic dynamical system as a **distribution** rather
-than a point — and it ships predictors that stay honest when your model of the system is wrong.
+than a point. It is for systems you can **step** (a simulator, or a Gymnasium environment) and can
+model, but not exactly: an underactuated robot, a vehicle or drone held near its operating point, a
+plant inside a process simulator.
 
-Predictors come in families, and the package is built to hold more than one:
+An ordinary predictor trusts that model. That works until the real system drifts away from it, and
+then the prediction is quietly too narrow: **overconfident** exactly when you needed it to be
+honest.
 
-- **distributionally robust** (**DRPP**) — optimizes for the *worst* system an ambiguity set
-  allows, and comes with a worst-case guarantee on the expected score. This release implements it
-  over **conic-moment** ambiguity sets.
-- **nominal** and **noise-robust** — the ordinary baselines, so the guarantee can be measured
-  against what it costs.
+`ppsds` ships one remedy today: **DRPP**, distributionally robust probabilistic prediction. You
+declare an **ambiguity set**, the systems you are willing to admit, and DRPP returns the
+predictive distribution whose *worst-case* expected score over that set is as high as it can be: a
+**floor that holds for every system in the set**, for the price of a little average performance.
+[Concepts](https://xuzerken.github.io/ppsds/concepts/) is about what that costs and what it
+assumes.
+
+That DRPP is the one for **conic-moment** ambiguity sets, on an **additive-drift** system. It is
+the first of a template rather than a single method: each family of ambiguity sets yields its own
+DRPP, and the `drpp` subpackage is built to hold more.
+
+Zoom out one level. DRPP is one *kind* of **probabilistic predictor** (PP). The kinds sit side by
+side in `ppsds.probabilistic_predictor`, one subpackage each, and `drpp` is the first of them. A
+data-driven setting would add a **learning-based PP** there; a theoretical one would add the
+**optimal PP** that attains **probabilistic predictability**, the best a prediction of a *known*
+system can do. That upper bound, and DRPP's guaranteed lower bound for a system known only through
+an ambiguity set, answer the same question from two sides.
 
 The guarantee is conditional, and understanding the condition is most of using the package well:
 a predictor does not become better by having a *worse* model, and the declaration you write
@@ -94,6 +108,8 @@ for _ in range(50):
 | [Getting Started](https://xuzerken.github.io/ppsds/getting-started/) | install it, run something, put it on your own system, and the pitfalls |
 | [Concepts](https://xuzerken.github.io/ppsds/concepts/) | what is optimized, what the worst case may touch, what the guarantee costs |
 | [Examples](https://xuzerken.github.io/ppsds/examples/) | every example, with the command and the real output |
+| [Developer Guide](https://xuzerken.github.io/ppsds/extending/) | write your own family of ambiguity sets, end to end |
+| [Troubleshooting](https://xuzerken.github.io/ppsds/extending-faq/) | the traps, and what to do about them |
 | [API](https://xuzerken.github.io/ppsds/api/) | generated from the docstrings |
 | [Citation](https://xuzerken.github.io/ppsds/citation/) | the software citation, and the references it implements |
 
@@ -115,12 +131,12 @@ GitHub's **Cite this repository** button reads
 entry; an archived release with a DOI will be added once the first version is tagged.
 
 The **papers** that the predictors implement are listed as references on the
-[citation page](https://xuzerken.github.io/ppsds/citation/) rather than here — this repository is
+[citation page](https://xuzerken.github.io/ppsds/citation/) rather than here. This repository is
 the software, and it will carry predictors from more than one paper.
 
 ## Contributing, licence
 
-- [Contributing](https://github.com/Xuzerken/ppsds/blob/main/CONTRIBUTING.md) — setup, tests, and
+- [Contributing](https://github.com/Xuzerken/ppsds/blob/main/CONTRIBUTING.md): setup, tests, and
   the rule that a change must not move a number
-- [MIT](https://github.com/Xuzerken/ppsds/blob/main/LICENSE) — use it freely, keep the copyright
+- [MIT](https://github.com/Xuzerken/ppsds/blob/main/LICENSE): use it freely, keep the copyright
   and licence notice

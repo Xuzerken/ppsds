@@ -25,7 +25,7 @@ paper. Each predictor's implementation records which reference it follows.
 
 ### Distributionally robust prediction over conic-moment ambiguity sets
 
-The family implemented in this release — the predictors `EigDrpp` and `NoiseDrpp`, the
+The DRPP implemented in this release: the predictors `EigDrpp` and `NoiseDrpp`, the
 conic-moment ambiguity sets, and the worst-case bounds in `ppsds.ambiguity`.
 
 ```bibtex

@@ -1,14 +1,15 @@
 # Getting Started
 
 This page takes you from a fresh install to a predictor running on **your own** gymnasium
-environment — in this release, the distributionally robust family. The path is short — you declare three things and run a loop — but one precondition
-is worth stating before anything else.
+environment. This release ships one DRPP, the one for **conic-moment** ambiguity sets, and that
+is the predictor used here. The path is short (you declare three things and run a loop), but one
+precondition is worth stating before anything else.
 
 > **The guarantee has a precondition: the ambiguity set you declare must contain the true
 > system.** `ppsds` is not "install it and the predictions get better". It is "state what you are
 > uncertain about, and get a **worst-case lower bound** on the score". Declare too little and the
 > bound is vacuous; declare too much and the predictions are needlessly conservative. Choosing
-> those declarations is the whole job — see [Concepts](concepts.md) for what the predictors
+> those declarations is the whole job; see [Concepts](concepts.md) for what the predictors
 > actually optimize.
 
 ## Install
@@ -49,7 +50,7 @@ Eig-DRPP              -3.366   made robust to the worst case
 ```
 
 Read the two numbers **as a pair**. `nominal` scores higher here, and that is the normal case, not
-a bug — see the first pitfall below. The real content of the example is the shape of the
+a bug; see the first pitfall below. The real content of the example is the shape of the
 workflow: the environment is only ever stepped, the predictors take their model from an ambiguity
 set you declared, and each score is computed against the state that actually arrived.
 
@@ -120,17 +121,17 @@ print(format_report(diagnose(res, X_next - X), fit))
 ```
 
 That report tells you how large the residual is, whether it still has lag-1 structure, and
-whether its covariance is numerically singular — the numbers your declarations should be based
+whether its covariance is numerically singular: the numbers your declarations should be based
 on. The [Acrobot](https://github.com/Xuzerken/ppsds/blob/main/examples/scene1_own_environment/with_standard_gym_env.py)
 and [Pendulum](https://github.com/Xuzerken/ppsds/blob/main/examples/scene1_own_environment/pendulum_singular_covariance.py)
 examples do exactly this, and their output is on the [Examples](examples.md) page.
 
 ## Common pitfalls
 
-**1. On an ordinary trajectory, DRPP scores *lower* than nominal — and that is expected.** The
+**1. On an ordinary trajectory, DRPP scores *lower* than nominal, and that is expected.** The
 example above shows it. DRPP trades average performance for a worst-case floor; on a trajectory
 where your declaration happens to be about right, the conservatism is pure cost. What makes DRPP
-win is not a bad model but an **optimistic declaration** — pitfall 4.
+win is not a bad model but an **optimistic declaration** (pitfall 4).
 
 **2. The conic-moment radii mix squared and un-squared quantities.** This is the easiest place to
 be off by a square:
@@ -144,17 +145,17 @@ alphas['A'], ['B']   un-squared:  largest perturbation of the corresponding A / 
 
 `f_err(x, u)` (also exposed as `gamma[0]`) is the odd one out: the callable returns a **squared**
 bound, while `f_err_max` is the un-squared hard bound. Their magnitudes set the magnitude of the
-score, so they are not numbers to guess — take them from physics (unobserved perturbations,
+score, so they are not numbers to guess: take them from physics (unobserved perturbations,
 actuator and sensor noise, unmodelled high-frequency dynamics), or from a first run whose
 magnitude you check against your intuition for "how accurate the prediction should be".
 
-**3. A deterministic environment has no noise to measure — and its residual covariance is often
+**3. A deterministic environment has no noise to measure, and its residual covariance is often
 structurally singular.** Most classic gymnasium environments return bit-identical results for the
 same state and action. That is not a defect: the model is a statement about what you believe, and
 a deterministic environment simply means the noise is entirely unmodelled. The trap is
 downstream. A covariance estimated from such residuals is often singular, the logarithmic score
 requires the predictive distribution to have a **density**, and a degenerate distribution scores
-`-inf` for almost every value. You must regularize — and **the size of that regularization is
+`-inf` for almost every value. You must regularize, and **the size of that regularization is
 itself a modelling decision**, because it sets the width of the predictive distribution and hence
 the score.
 
@@ -172,7 +173,7 @@ Pitfalls 5–7 apply to the scene-2 batch runner
 
 **5. A small `-t` changes the figures, and says so.** The plot indices are fixed in the model
 table, so a `-t` below the largest index emits a `RuntimeWarning` and clamps to the last available
-trajectory — the figure content changes accordingly. It no longer crashes (it used to raise
+trajectory, and the figure content changes accordingly. It no longer crashes (it used to raise
 `IndexError`), but the warning is worth reading:
 
 ```
@@ -182,7 +183,7 @@ raise -t or use a smaller index.
 ```
 
 **6. The cache is validating, not "the file exists".** A completed step is reused only if its
-recorded fingerprint still matches — source hashes, a parameter snapshot, the sha256 of each
+recorded fingerprint still matches: source hashes, a parameter snapshot, the sha256 of each
 dependency, and the array shapes. Change the code or a parameter and it recomputes, telling you
 why. `-f` forces everything to recompute; so does a first run over a directory with no manifest.
 
@@ -194,7 +195,7 @@ reason instead of a wrong answer.
 ## Platform notes
 
 - Windows, WSL and Linux are all supported, and every dependency is cross-platform.
-- Use **forward slashes** in paths, always — `data/gym/traj.pkl`, never `data\gym\traj.pkl`.
+- Use **forward slashes** in paths, always: `data/gym/traj.pkl`, never `data\gym\traj.pkl`.
 - Line endings are handled by `.gitattributes`: content is stored as LF in the repository, shell
   scripts check out as LF and PowerShell scripts as CRLF. It is the only line-ending guarantee, so
   leave that file alone.
@@ -207,6 +208,7 @@ reason instead of a wrong answer.
 |---|---|
 | understand what the predictors actually optimize | [Concepts](concepts.md) |
 | see every example, with its command and its real output | [Examples](examples.md) |
+| add your own family of ambiguity sets, end to end | [Developer Guide](extending.md) |
 | look up a class or function | [API](api.md) |
 
 Also in the repository:

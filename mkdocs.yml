@@ -1,6 +1,6 @@
 site_name: ppsds
 site_description: >-
-  Distributionally robust probabilistic prediction for stochastic dynamical systems
+  Probabilistic prediction for stochastic dynamical systems
 site_url: https://xuzerken.github.io/ppsds/
 repo_url: https://github.com/Xuzerken/ppsds
 repo_name: Xuzerken/ppsds
@@ -10,7 +10,9 @@ copyright: MIT licensed &middot; Tao Xu and Jianping He
 theme:
   name: material
   features:
-    - navigation.sections
+    # `navigation.sections` is deliberately NOT enabled: it flattens top-level sections into
+    # non-collapsible headers with un-indented children. The default gives a collapsible group
+    # with indented children, which is what a two-page section wants.
     - navigation.top
     - content.code.copy
     - content.action.edit
@@ -32,6 +34,9 @@ nav:
   - Getting Started: getting-started.md
   - Concepts: concepts.md
   - Examples: examples.md
+  - Developer Guide:
+      - Writing a new family: extending.md
+      - Troubleshooting: extending-faq.md
   - API: api.md
   - Citation: citation.md
 

@@ -3,10 +3,12 @@ message: "If you use this software, please cite it using the metadata in this fi
 title: "ppsds: probabilistic prediction for stochastic dynamical systems"
 abstract: >-
   A Python library for probabilistic prediction on stochastic dynamical systems. It predicts the
-  next state of a system as a distribution rather than a point, and implements distributionally
-  robust predictors over conic-moment ambiguity sets -- which optimize for the worst system an
-  ambiguity set allows and come with worst-case guarantees on the expected score -- alongside
-  nominal and noise-robust baselines. Further predictor families are intended.
+  next state of a system as a distribution rather than a point, and implements DRPP --
+  distributionally robust probabilistic prediction -- over conic-moment ambiguity sets: predictors
+  that optimize for the worst system an ambiguity set allows and carry worst-case guarantees on
+  the expected score, alongside nominal and noise-robust baselines. DRPP is one kind of
+  probabilistic predictor among others the library is intended to carry: further families of
+  ambiguity sets, and the DRPP that matches each, are intended.
 type: software
 license: MIT
 repository-code: "https://github.com/Xuzerken/ppsds"

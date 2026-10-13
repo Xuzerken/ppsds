@@ -40,6 +40,11 @@ jobs:
       # Advisory, not a gate: `readme_renderer` reports warnings for constructs that are
       # acceptable but render differently on PyPI, and failing the build on those would be
       # noise. It is here so that a *break* is visible in the log.
+      #
+      # It needs the Markdown renderer to do anything at all: a bare `readme_renderer` prints
+      # nothing and exits 1, and `continue-on-error` swallows that as "advisory" -- which is
+      # how it went unnoticed. The `dev` extra declares `readme_renderer[md]`, so do not drop
+      # the extra suffix.
       - name: Render the README the way PyPI will (advisory)
         continue-on-error: true
         run: python -m readme_renderer README.md > /dev/null

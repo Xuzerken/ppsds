@@ -81,7 +81,13 @@ experiments = [
 dev = [
     "build",
     "pytest",
-    "readme_renderer",
+    # The `[md]` extra is load-bearing, not tidiness. A bare `readme_renderer` has no Markdown
+    # renderer: it warns, prints nothing, and **exits 1**. The CI step that uses it is
+    # `continue-on-error`, so that failure was tolerated as "advisory" instead of diagnosed --
+    # the README was never actually rendered. With the extra it renders (exit 0, ~15 kB for our
+    # README) and a genuine break becomes visible. 46.x pulls `comrak`; older releases pulled
+    # `cmarkgfm`.
+    "readme_renderer[md]",
     "ruff",
     "twine",
 ]

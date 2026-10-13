@@ -1,0 +1,39 @@
+# Conda environment for running what is in this directory.
+#
+# `pip install -e ".[dev,experiments]"` builds an equivalent environment without conda; this file
+# exists so the batch runner's scripts have something concrete to create --
+# examples/scene2_simulated_ambiguity/batch_experiment/run.sh (Linux/WSL) and run.ps1 (Windows)
+# both activate it by name, so keep `name:` and those scripts in step. The versions below are the
+# ones this repository is tested against; the package's own lower bounds live in pyproject.toml.
+#
+# Two traps, both about the word "case":
+#   * Activation is case-sensitive on Linux and WSL: `conda activate drpp`, not `DRPP`.
+#   * The conda directory itself must be on a **case-sensitive** filesystem. Package archives
+#     contain paths that differ only in case (ncurses alone has 25 such pairs under
+#     share/terminfo/), so on a case-insensitive one they overwrite each other and
+#     `conda env create` aborts with "CondaVerificationError ... appears to be corrupted". That is
+#     not a download failure and retrying does not help -- move the conda directory, or use a named
+#     volume rather than a bind mount. macOS's default APFS is case-insensitive.
+#
+# Only conda-forge, deliberately without `defaults`: since conda 26, Anaconda's official channels
+# (pkgs/main, pkgs/r) require accepting their Terms of Service first, which fails outright in
+# non-interactive contexts such as CI and containers. Also note that a `channels:` list in an env
+# file **replaces** ~/.condarc rather than adding to it, so the channels have to be pinned here.
+name: drpp
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python =3.12
+  - numpy =2.3
+  - scipy =1.16
+  - matplotlib =3.10
+  - pandas =2.3
+  - seaborn =0.13
+  - ipykernel =6.31        # only needed to run the examples from a notebook
+  - tqdm =4.67
+  - gymnasium >=1.0
+  - pip
+  - pip:
+      - cvxpy ==1.7.4

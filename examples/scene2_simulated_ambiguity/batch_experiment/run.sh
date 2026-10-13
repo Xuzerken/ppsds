@@ -17,7 +17,7 @@
 # `none` and $CONTROL.
 # The trajectory count uses run.py's default (100).
 #
-# Requires the conda environment `drpp` (see environment.yml).
+# Requires the conda environment `drpp` (see examples/environment.yml).
 set -u
 
 if ! command -v conda >/dev/null 2>&1; then

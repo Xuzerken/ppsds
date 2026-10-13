@@ -51,7 +51,7 @@ classifiers = [
 ]
 dependencies = [
     # The lower bounds are the versions this repository has been tested against
-    # (see environment.yml).
+    # (see examples/environment.yml).
     "numpy>=2.0",
     "scipy>=1.14",
     # cvxpy >= 1.6, not >= 1.5: cvxpy only gained numpy 2 support in the 1.5.2/1.6 line, so a

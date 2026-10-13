@@ -22,11 +22,12 @@ Usage::
     python tools/check_links.py         # only report broken links
     python tools/check_links.py -v      # also list skipped targets and passing links
     python tools/check_links.py --pypi-readme
-                                        # additionally check README.md against the two rules
+                                        # additionally check the READMEs against the two rules
                                         # PyPI imposes and GitHub does not
 
 Exit code: 0 = everything passes; 1 = broken or malformed links (or, with ``--pypi-readme``,
-a README that PyPI would render wrong).
+**the README that ships** being one PyPI would render wrong -- see :func:`shipping_readme`;
+a README that does not ship is reported but is not a gate).
 """
 
 from __future__ import annotations
@@ -254,14 +255,28 @@ def strip_code(text: str) -> str:
     return '\n'.join(out)
 
 
-#: The READMEs that become the project page. ``public/README.md`` is the one that ships; the
-#: root ``README.md`` is this repository's own, and is checked so that the rule is enforced
-#: wherever a README is being written rather than only where it is finished.
+#: The READMEs that could become the project page, **most-shipping first**. Exactly one of them
+#: ships: ``public/README.md`` here (``public/**`` becomes the root of the public repository on
+#: export) and the root ``README.md`` in the public repository itself. So the first one that
+#: exists is the one PyPI will render -- see :func:`shipping_readme`.
+#:
+#: A candidate that exists but does not ship is still **reported**, so that a README being
+#: written learns the rules before it is the one that ships -- but it is **not a gate**. The
+#: root ``README.md`` here is Chinese and links to the private ``docs/``, so it can never satisfy
+#: the absolute-links rule; a gate that is red by construction is a gate nobody reads.
 PYPI_README_CANDIDATES = ('public/README.md', 'README.md')
 
 
+def shipping_readme() -> str | None:
+    """The candidate that becomes the PyPI project page -- the first one that exists."""
+    for rel in PYPI_README_CANDIDATES:
+        if os.path.isfile(os.path.join(REPO_ROOT, rel)):
+            return rel
+    return None
+
+
 def check_pypi_readme() -> tuple[list[tuple[str, int, str]], list[tuple[str, int, str]]]:
-    """Check the README against the two rules PyPI imposes and GitHub does not.
+    """Check the README candidates against the two rules PyPI imposes and GitHub does not.
 
     The README is the wheel's ``long_description``, so it **is** the project page. Two things
     that look fine on GitHub break there:
@@ -272,6 +287,9 @@ def check_pypi_readme() -> tuple[list[tuple[str, int, str]], list[tuple[str, int
 
     Both are invisible until after the upload -- and a version number, once used, can only be
     yanked, never reused. Hence a mechanical check before tagging rather than a careful read.
+
+    Covers every candidate in :data:`PYPI_README_CANDIDATES`, shipping or not; the split is the
+    caller's, via :func:`shipping_readme`.
 
     Returns ``(relative_links, math_delimiters)`` as ``(file, line, text)`` triples.
     """
@@ -297,20 +315,46 @@ def check_pypi_readme() -> tuple[list[tuple[str, int, str]], list[tuple[str, int
     return relative, sorted(math_hits)
 
 
+def report_advisory(relative: list[tuple[str, int, str]],
+                    math_hits: list[tuple[str, int, str]],
+                    shipping: str | None) -> None:
+    """Print what the READMEs that do **not** ship would get wrong on PyPI.
+
+    Printed on a passing run as well as a failing one: it is a README being written, and the
+    point is that whoever writes it learns the rules before it is the one that ships. It just
+    cannot be a gate -- see :data:`PYPI_README_CANDIDATES`.
+    """
+    other = [x for x in (*relative, *math_hits) if x[0] != shipping]
+    for rel in sorted({x[0] for x in other}):
+        print(f'\nNOTE: {rel} is not the README that ships ({shipping}), so the findings below '
+              f'are advisory and do not fail this check.')
+        for found in relative:
+            if found[0] == rel:
+                print(f'  {found[0]}:{found[1]}   relative link -> {found[2]}')
+        for found in math_hits:
+            if found[0] == rel:
+                print(f'  {found[0]}:{found[1]}   LaTeX {found[2]}')
+
+
 def report_pypi_readme(relative: list[tuple[str, int, str]],
-                       math_hits: list[tuple[str, int, str]]) -> None:
-    if relative:
-        print('\nFAIL: these READMEs have relative links, which 404 on PyPI:')
-        for rel, lineno, target in relative:
+                       math_hits: list[tuple[str, int, str]],
+                       shipping: str | None) -> None:
+    """Print what the README that **ships** would get wrong on PyPI -- the failures."""
+    gate_relative = [r for r in relative if r[0] == shipping]
+    gate_math = [m for m in math_hits if m[0] == shipping]
+
+    if gate_relative:
+        print('\nFAIL: the README that ships has relative links, which 404 on PyPI:')
+        for rel, lineno, target in gate_relative:
             print(f'  {rel}:{lineno}')
             print(f'      -> {target}')
         print('      -> PyPI renders the README on the project page, which is not a directory in '
               'the repository, so a relative target resolves nowhere.')
         print('      -> use the absolute form, e.g. '
               'https://github.com/Xuzerken/ppsds/blob/main/<path>')
-    if math_hits:
-        print('\nFAIL: these READMEs contain LaTeX, which PyPI does not render:')
-        for rel, lineno, delim in math_hits:
+    if gate_math:
+        print('\nFAIL: the README that ships contains LaTeX, which PyPI does not render:')
+        for rel, lineno, delim in gate_math:
             print(f'  {rel}:{lineno}   {delim}')
         print('      -> it appears literally on the project page. Keep the LaTeX for GitHub and '
               'put a plain-text form in a fenced code block.')
@@ -321,24 +365,32 @@ def main() -> int:
     ap.add_argument('-v', '--verbose', action='store_true',
                     help='also list skipped targets and passing links')
     ap.add_argument('--pypi-readme', action='store_true',
-                    help='additionally check README.md against the two rendering rules PyPI '
+                    help='additionally check the READMEs against the two rendering rules PyPI '
                          'imposes (absolute links only, no LaTeX), because the README is the '
-                         'long description and therefore the project page')
+                         'long description and therefore the project page; only the one that '
+                         'ships fails the check, the others are reported as advisory')
     args = ap.parse_args()
 
     print(f'repo root: {REPO_ROOT}')
     broken, malformed = check(args.verbose)
 
     relative, math_hits = ([], [])
+    shipping = None
     if args.pypi_readme:
+        shipping = shipping_readme()
         relative, math_hits = check_pypi_readme()
         print(f'\nPyPI README check: {len(relative)} relative link(s), '
-              f'{len(math_hits)} LaTeX delimiter(s)')
+              f'{len(math_hits)} LaTeX delimiter(s); the one that ships is {shipping}')
 
-    if not broken and not malformed and not relative and not math_hits:
-        print('OK: no broken links and no malformed links.')
+    # Only the README that becomes the project page is a gate; the rest is reported, not enforced.
+    gate = [x for x in (*relative, *math_hits) if x[0] == shipping]
+
+    if not broken and not malformed and not gate:
         if args.pypi_readme:
-            print('OK: README.md satisfies the PyPI rendering rules.')
+            report_advisory(relative, math_hits, shipping)
+        print('\nOK: no broken links and no malformed links.')
+        if args.pypi_readme:
+            print(f'OK: {shipping} satisfies the PyPI rendering rules.')
         return 0
 
     if broken:
@@ -363,7 +415,9 @@ def main() -> int:
                   f'text: {dest.replace(" ", "%20")}')
 
     if args.pypi_readme:
-        report_pypi_readme(relative, math_hits)
+        report_pypi_readme(relative, math_hits, shipping)
+        # Last, so the advisory never sits between the reader and the failures above it.
+        report_advisory(relative, math_hits, shipping)
 
     print('\nHow to fix: a link URL must be relative to **the directory this file lives in**; '
           'when the target contains a space, write it as %20, or wrap the whole URL in angle '

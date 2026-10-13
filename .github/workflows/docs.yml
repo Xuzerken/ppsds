@@ -25,20 +25,39 @@ jobs:
       - name: Install
         run: pip install -e ".[docs]"
 
+      # This workflow is shared between the two repositories, and `mkdocs.yml` is **not at the
+      # same path in both**: `public/**` becomes the root of the public repository on export, so
+      # the same file is `public/mkdocs.yml` here and `mkdocs.yml` there. Locate it once and let
+      # every path below follow, rather than hard-coding either layout -- hard-coding the public
+      # one is what made this job red on every push here.
+      - name: Locate the site root
+        id: site
+        run: |
+          if [ -f public/mkdocs.yml ]; then
+            echo "dir=public" >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=." >> "$GITHUB_OUTPUT"
+          fi
+
       # `--strict` turns every warning into a failure, which is the point: a link between pages
       # that no longer resolves, or a nav entry pointing at a page that was renamed, fails here
       # instead of shipping a site with a hole in it. `mkdocs.yml` also sets `strict: true`, so
       # the two agree whichever way it is invoked.
       - name: Build
+        working-directory: ${{ steps.site.outputs.dir }}
         run: mkdocs build --strict
 
+      # No `working-directory`: the script resolves the repository root from its own location.
+      # It fails on the README that ships, and reports the ones that do not as advisory -- in
+      # this repository the root `README.md` is Chinese and links to the private `docs/`, so it
+      # can never satisfy the rule, and gating on it would keep this step red by construction.
       - name: Check the published Markdown
         run: python tools/check_links.py --pypi-readme
 
       - uses: actions/upload-pages-artifact@v3
         if: github.ref == 'refs/heads/main'
         with:
-          path: site/
+          path: ${{ steps.site.outputs.dir }}/site
 
   # A private repository cannot serve GitHub Pages on the free plan, so this job waits for the
   # repository to become public rather than failing red on every push in the meantime. The build

@@ -11,7 +11,7 @@ distribution; everything here is about the repository.
 | script | the question it answers | when to run it |
 |---|---|---|
 | `ab_compare.py` | "did this change alter a single number?" | before merging anything that touches numerics, the cache fingerprint, or the experiment pipeline |
-| `check_links.py` | "do the links in the documents that ship actually resolve?" (plus `--pypi-readme` for the two rendering rules PyPI adds) | before a release; in CI |
+| `check_links.py` | "do the links in the documents that ship actually resolve?" (plus `--pypi-readme` for the two rendering rules PyPI adds, gated on the README that actually ships — the others are reported as advisory) | before a release; in CI |
 | `export_public.py` | "does the public repository match this one, and does what would be exported carry anything private?" | before every push to the public repository |
 
 `check_devlog.py` is **not** here on purpose, and is the one script in this directory that does

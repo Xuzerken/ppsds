@@ -12,11 +12,16 @@ python -m venv .venv && . .venv/bin/activate      # or any environment you like
 
 pip install -e ".[dev]"                  # core only
 pip install -e ".[dev,experiments]"      # plus the experiment driver and the figures
+pip install -e ".[docs]"                 # plus the toolchain that builds the documentation site
 ```
 
-`pip install -e ".[dev]"` is the more useful of the two: it is the configuration a plain
+`pip install -e ".[dev]"` is the more useful of the first two: it is the configuration a plain
 `pip install ppsds` produces, so it is the one that catches a core module that has grown a
 dependency on the plotting periphery.
+
+The `docs` extra is separate because nobody writing library code needs it — GitHub renders the
+Markdown as it stands. Install it to preview the site locally (`mkdocs serve`) or to change the
+site itself; CI installs it on its own.
 
 ## Running the tests
 

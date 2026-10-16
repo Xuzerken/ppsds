@@ -3,37 +3,23 @@
 Part of the **experiments extra** — ``pip install "ppsds[experiments]"``. Nothing in the core
 imports this subpackage, so a user who only wants predictions never pays for ``matplotlib``.
 
-Everything here takes **paths to the pickles the experiments wrote**, not arrays, with one
-exception: :func:`~ppsds.visualization.predictability.plot_predictability_panel` takes a score
-array directly, which is what lets an example draw the paper's figure without running the batch
-pipeline first.
+⚠️ **This module deliberately re-exports nothing**, unlike every other subpackage of ``ppsds``.
+Its submodules do not share a dependency floor — ``bounds``, ``scatter`` and ``graph_format`` are
+numpy-only, while ``covariance``, ``curve`` and ``predictability`` import ``matplotlib`` at module
+level. An eager ``__init__`` that imported all of them would make ``import
+ppsds.visualization.bounds`` fail *without* the extra, which is a property that used to hold and
+that ``tests/test_regressions.py`` relies on.
+
+The rule this is an instance of, worth stating once: **an eager re-export raises the import floor
+of every submodule to the highest one in the package.** That is fine where all the submodules cost
+the same (``ambiguity``, ``dynamics``, ``numerics``, ``predictability``,
+``probabilistic_predictor``, ``scoring_rule``, ``control_policy`` — all numpy/scipy), and wrong
+here. Reach for the full path, or for one of these::
+
+    from ppsds.visualization.bounds import clamp_index
+    from ppsds.visualization.predictability import plot_predictability_panel
 
 Every entry point clamps its indices. An out-of-range trajectory index warns and draws the nearest
 valid one rather than raising: the data has already been computed by then, and one figure should
 not fail a whole experiment.
 """
-
-from .bounds import clamp_horizon, clamp_index, clamp_len, clamp_time_indexes
-from .covariance import (
-    plot_ellipses_compare_predictors,
-    plot_ellipses_compare_predictors_worst_case,
-    plot_ellipses_over_traj,
-)
-from .curve import plot_error_bar, plot_traj
-from .predictability import choose_trajectories, plot_predictability_panel
-from .scatter import plot_target
-
-__all__ = [
-    'clamp_horizon',
-    'clamp_index',
-    'clamp_len',
-    'clamp_time_indexes',
-    'plot_ellipses_compare_predictors',
-    'plot_ellipses_compare_predictors_worst_case',
-    'plot_ellipses_over_traj',
-    'plot_error_bar',
-    'plot_traj',
-    'choose_trajectories',
-    'plot_predictability_panel',
-    'plot_target',
-]

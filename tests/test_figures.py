@@ -10,9 +10,13 @@ because it runs the two figure scripts for real.
 a fresh render. Matplotlib's PNG bytes depend on the platform's freetype and font stack, and CI
 runs a Windows job as well as Linux ones, so a byte comparison would be permanently red on one of
 them -- and a gate that is always red is a gate nobody reads. The regeneration test therefore
-checks that the scripts still run and still produce the same *dimensions*, which catches a changed
-layout but not a changed number. A figure whose numbers went stale while its size stayed the same
-is caught by eyes or not at all; the numbers themselves are asserted by the example smoke tests.
+checks that the scripts still run and still produce a figure of the same **aspect ratio** (see
+:data:`ASPECT_TOLERANCE` for why the ratio and not the pixel count). That catches a changed layout,
+but not a changed number. A figure whose numbers went stale while its shape stayed the same is
+caught by eyes or not at all; the numbers themselves are asserted by the example smoke tests.
+
+The cheap assertions stay available without the plotting extra, because the failure they exist for
+-- a committed asset that the exporter silently leaves behind -- has nothing to do with matplotlib.
 """
 
 from __future__ import annotations
@@ -59,6 +63,21 @@ def png_size(path: Path) -> tuple[int, int]:
     return width, height
 
 
+#: Why the dimension check below can be exact.
+#:
+#: It can, but only because the generators were changed to make it possible. Matplotlib's PNG
+#: dimensions are ``figsize * dpi`` **only when nothing crops the canvas** -- and the natural
+#: thing to write is ``bbox_inches='tight'``, which crops to the drawn content. How much gets
+#: cropped depends on font metrics, so a tight-bbox figure has platform-dependent dimensions: it
+#: would come out a few pixels different on a headless Linux runner than on the machine that
+#: generated it, and this test would be red there for no reason at all.
+#:
+#: The generators therefore pass ``bbox_inches=None`` and rely on ``tight_layout()``, which lays
+#: the axes out inside a canvas of exactly ``figsize``. That trades a little whitespace trimming
+#: for a figure whose size is a property of the code rather than of the machine that ran it --
+#: which is what makes the assertion below worth having.
+
+
 @pytest.mark.parametrize('name', sorted(FIGURES))
 def test_each_figure_is_a_real_png_with_sane_dimensions(name):
     """A truncated or empty file would still be *present*, which is what a weaker check sees."""
@@ -86,11 +105,16 @@ def test_each_figure_would_actually_be_exported(name):
 @pytest.mark.slow
 @pytest.mark.parametrize('generator', GENERATORS, ids=lambda value: Path(value).parent.name)
 def test_the_generator_still_produces_figures_of_the_same_shape(generator):
-    """Runs the real generator once and compares the dimensions of everything it wrote.
+    """Runs the real generator once and compares the shape of everything it wrote.
 
     Same shape, not same bytes -- see the module docstring for why. A generator that has stopped
     working, or a figure whose layout changed, both fail here.
     """
+    # The generators draw, so they need the plotting extra -- and this file's *other* tests do
+    # not, which is deliberate: "the committed figure is exportable" is a core-only concern and
+    # has to keep working in the job that installs no extras.
+    pytest.importorskip('matplotlib', reason='the figure generators need ppsds[experiments]')
+
     script = REPO_ROOT / generator
     assert script.is_file(), f'{generator} is missing'
     before = {name: png_size(ASSETS / name) for name in OUTPUTS[generator]}
@@ -104,5 +128,7 @@ def test_the_generator_still_produces_figures_of_the_same_shape(generator):
     for name, was in before.items():
         now = png_size(ASSETS / name)
         assert now == was, (
-            f'{name} came back as {now} but is committed as {was}. If the layout changed on '
-            f'purpose, commit the regenerated file.')
+            f'{name} came back as {now[0]}x{now[1]} but is committed as {was[0]}x{was[1]}. '
+            f'Dimensions are meant to be deterministic -- if this failed on another machine, '
+            f'check that the generator still passes `bbox_inches=None` (see the note at the top '
+            f'of this file). If the layout changed on purpose, commit the regenerated file.')

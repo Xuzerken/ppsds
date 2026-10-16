@@ -54,7 +54,7 @@ def main() -> int:
                                   approximation=panel['approximation'])
         ax.set_title(rf'$\epsilon = {panel["eps"]}$', fontsize=11)
     figure.tight_layout()
-    figure.savefig(args.out, dpi=110, bbox_inches='tight')
+    figure.savefig(args.out, dpi=110, bbox_inches=None)
     plt.close(figure)
 
     print(f'wrote {args.out}  ({args.out.stat().st_size / 1024:.0f} KiB)')

@@ -146,7 +146,7 @@ def figure_prediction(out_dir: Path, env) -> Path:
 
     figure.tight_layout()
     path = out_dir / 'prediction_on_your_system.png'
-    figure.savefig(path, dpi=140, bbox_inches='tight')
+    figure.savefig(path, dpi=140, bbox_inches=None)
     plt.close(figure)
     return path
 
@@ -190,7 +190,7 @@ def figure_when_drpp_pays(out_dir: Path, env) -> Path:
     ax.grid(alpha=0.25)
     figure.tight_layout()
     path = out_dir / 'when_drpp_pays.png'
-    figure.savefig(path, dpi=140, bbox_inches='tight')
+    figure.savefig(path, dpi=140, bbox_inches=None)
     plt.close(figure)
     return path
 

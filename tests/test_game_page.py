@@ -34,8 +34,13 @@ from pathlib import Path
 
 import pytest
 
+from _paths import public_root
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
-GAME = REPO_ROOT / 'public' / 'docs' / 'understand_ppsds_by_pmf_betting' / 'game'
+
+#: The page, in whichever layout this tree uses -- see :mod:`_paths`.
+GAME = ((public_root() or REPO_ROOT / 'public') / 'docs'
+        / 'understand_ppsds_by_pmf_betting' / 'game')
 ASSETS = GAME / 'assets'
 EXAMPLE_DIR = REPO_ROOT / 'examples' / 'understand_ppsds_by_pmf_betting' / 'experiment'
 
@@ -49,7 +54,11 @@ import run as pmf_run  # noqa: E402
 
 NODE = shutil.which('node')
 
-pytestmark = pytest.mark.skipif(NODE is None, reason='no node runtime available')
+pytestmark = pytest.mark.skipif(
+    NODE is None or public_root() is None,
+    reason='this test needs a node runtime and the published page; neither is guaranteed here '
+           '(CI installs no node, and an sdist has no public content)',
+)
 
 #: The page's modules, by the job each does. The pure ones are imported and executed; the renderer
 #: is only parsed.

@@ -29,9 +29,20 @@ import pytest
 from ppsds.numerics.atom_pmf import AtomPmf
 from ppsds.scoring_rule.epsilon_logarithm_score import EpsilonLogarithmScore
 
+from _paths import public_root
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_DIR = REPO_ROOT / 'examples' / 'understand_ppsds_by_pmf_betting' / 'experiment'
-ASSETS = REPO_ROOT / 'public' / 'docs' / 'understand_ppsds_by_pmf_betting' / 'game' / 'assets'
+
+#: The page's data, in whichever layout this tree uses -- see :mod:`_paths`.
+ASSETS = ((public_root() or REPO_ROOT / 'public') / 'docs'
+          / 'understand_ppsds_by_pmf_betting' / 'game' / 'assets')
+
+pytestmark = pytest.mark.skipif(
+    public_root() is None,
+    reason='this tree has no published content (for instance an unpacked sdist), so the page this '
+           'contract is about is not here to check',
+)
 
 if str(EXAMPLE_DIR) not in sys.path:
     sys.path.insert(0, str(EXAMPLE_DIR))

@@ -19,15 +19,18 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-PUBLIC = REPO_ROOT / 'public'
-README = PUBLIC / 'README.md'
-SITE_HOME = PUBLIC / 'docs' / 'index.md'
-ASSETS = PUBLIC / 'docs' / 'assets'
+from _paths import public_root
+
+#: ``public/`` in the development repository, the repository root on the public side, and
+#: ``None`` in a tree that has neither (an sdist) -- see :mod:`_paths`.
+PUBLIC = public_root()
+README = PUBLIC / 'README.md' if PUBLIC else None
+SITE_HOME = PUBLIC / 'docs' / 'index.md' if PUBLIC else None
+ASSETS = PUBLIC / 'docs' / 'assets' if PUBLIC else None
 
 pytestmark = pytest.mark.skipif(
-    not README.is_file(),
-    reason='public/ is not present in this tree (for instance in an unpacked sdist)',
+    PUBLIC is None,
+    reason='this tree has no published content (for instance an unpacked sdist)',
 )
 
 #: The three answers to "where do you want to start?". Prose may change; these are the reader

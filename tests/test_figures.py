@@ -28,8 +28,11 @@ from pathlib import Path
 
 import pytest
 
+from _paths import public_root
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ASSETS = REPO_ROOT / 'public' / 'docs' / 'assets'
+#: Resolved for both layouts -- see :mod:`_paths`.
+ASSETS = (public_root() or REPO_ROOT / 'public') / 'docs' / 'assets'
 
 #: The figures generated into ``public/docs/assets/``, and the script that writes each. Note that
 #: one script writes two of them -- the slow test below is parametrized by **generator**, not by
@@ -49,9 +52,8 @@ OUTPUTS = {generator: [name for name, g in FIGURES.items() if g == generator]
            for generator in GENERATORS}
 
 pytestmark = pytest.mark.skipif(
-    not ASSETS.is_dir(),
-    reason='public/ is not present in this tree (for instance when the tests run against an '
-           'unpacked sdist)',
+    public_root() is None,
+    reason='this tree has no published content (for instance an unpacked sdist)',
 )
 
 

@@ -19,24 +19,37 @@ from pathlib import Path
 
 import pytest
 
+from _paths import public_root
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLS = REPO_ROOT / 'tools'
 
-pytestmark = pytest.mark.skipif(
-    not (TOOLS / 'export_public.py').is_file(),
-    reason='tools/ is not present (the public repository ships only part of it), so there is no '
-           'export whitelist to test against',
-)
 
-sys.path.insert(0, str(TOOLS))
-import export_public as ep  # noqa: E402  (path set above, deliberately)
+@pytest.fixture(scope='module')
+def ep():
+    """``tools/export_public.py``, imported **lazily**.
+
+    Lazily, not at module scope, and that distinction is the whole point of this fixture. A
+    module-level ``import export_public`` under a ``pytestmark`` skipif **still runs** -- the
+    skipif only decides whether the tests execute, and by then the module has already failed to
+    import. This script is not shipped to the public repository (only ``ab_compare.py``,
+    ``check_links.py`` and ``README.md`` are), so the import raised ``ModuleNotFoundError`` there
+    and took the *entire* pytest run down as a collection error -- every job that runs the suite,
+    for a file none of them needed. The guard has to be inside the thing being guarded.
+    """
+    if not (TOOLS / 'export_public.py').is_file():
+        pytest.skip('tools/export_public.py is not in this tree -- the public repository ships '
+                    'only part of tools/, so there is no export whitelist to test against')
+    sys.path.insert(0, str(TOOLS))
+    import export_public
+    return export_public
 
 
 # ----------------------------------------------------------------------
 # The rule itself
 # ----------------------------------------------------------------------
 
-def test_public_release_assets_are_exported_but_experiment_output_is_not():
+def test_public_release_assets_are_exported_but_experiment_output_is_not(ep):
     """The whole point of the carve-out: it depends on **where** the file is, not what it is."""
     # A hand-authored release asset: exported.
     assert not ep.should_skip('public/docs/assets/figure.png')
@@ -47,7 +60,7 @@ def test_public_release_assets_are_exported_but_experiment_output_is_not():
     assert ep.should_skip('figure.png')
 
 
-def test_the_carve_out_is_narrow():
+def test_the_carve_out_is_narrow(ep):
     """``.png`` was added; nothing else was. Binary formats the leak scan cannot read stay out."""
     for quiet in ('.pdf', '.pkl', '.npy', '.npz', '.pyc'):
         assert ep.should_skip(f'public/docs/assets/thing{quiet}'), \
@@ -55,7 +68,7 @@ def test_the_carve_out_is_narrow():
     assert ep.should_skip('public/docs/assets/thing.pdf')
 
 
-def test_ordinary_files_are_still_exported():
+def test_ordinary_files_are_still_exported(ep):
     """Guards against a carve-out that accidentally swallows the normal case."""
     for rel in ('src/ppsds/__init__.py',
                 'examples/apply_drpp_to_your_own_env/quickstart.py',
@@ -68,14 +81,14 @@ def test_ordinary_files_are_still_exported():
 # The rule as it is actually applied
 # ----------------------------------------------------------------------
 
-def test_a_png_under_public_really_does_reach_the_export(tmp_path=None):
+def test_a_png_under_public_really_does_reach_the_export(ep):
     """End to end through :func:`iter_export`, not just the predicate.
 
     Writes a throwaway asset, asks the exporter what it would ship, and removes it again. A
     predicate that is right while the walk that calls it still filters by name would pass the
     tests above and fail here -- which is exactly the bug this is here to catch.
     """
-    asset_dir = REPO_ROOT / 'public' / 'docs' / 'assets'
+    asset_dir = (public_root() or REPO_ROOT / 'public') / 'docs' / 'assets'
     stray_public = asset_dir / '__export_probe__.png'
     stray_experiment = REPO_ROOT / 'examples' / '__export_probe__.png'
     stray_public.write_bytes(b'\x89PNG\r\n\x1a\n')
@@ -92,7 +105,7 @@ def test_a_png_under_public_really_does_reach_the_export(tmp_path=None):
         stray_experiment.unlink(missing_ok=True)
 
 
-def test_every_committed_release_asset_is_in_the_export():
+def test_every_committed_release_asset_is_in_the_export(ep):
     """The non-vacuous version of the check above: whatever is really there must really travel.
 
     This is the assertion that would have caught the original bug against the *existing* tree
@@ -110,7 +123,7 @@ def test_every_committed_release_asset_is_in_the_export():
         assert rel in exported, f'{rel} is committed but would not be exported'
 
 
-def test_the_game_page_is_scanned_for_embargoed_tokens():
+def test_the_game_page_is_scanned_for_embargoed_tokens(ep):
     """The leak scan has to *read* the front end, not just copy it around it.
 
     Until 2026-10-16 ``.js``/``.html`` were missing from ``TEXT_SUFFIXES``, so the game page --

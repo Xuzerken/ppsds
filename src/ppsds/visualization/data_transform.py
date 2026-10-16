@@ -1,14 +1,16 @@
 """Small reshaping helpers shared by the plotting modules."""
 
-import numpy as np
 import pandas as pd
 
+from ..predictability.trajectory import cumulative_average
+
 def cum_average(data):
-    """Cumulative average along axis 1 (step axis)."""
-    data = np.cumsum(data, axis=1)
-    for i in range(data.shape[1]):
-        data[:, i] /= i+1
-    return data
+    """Cumulative average along axis 1 (step axis).
+
+    Thin alias for the core implementation, which the predictability figures use too -- one
+    definition, so the core and the plotting periphery cannot drift apart.
+    """
+    return cumulative_average(data)
 
 def data_to_dict(score, time_indexes):
     '''

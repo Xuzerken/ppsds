@@ -13,7 +13,7 @@ type: software
 license: MIT
 repository-code: "https://github.com/Xuzerken/ppsds"
 url: "https://xuzerken.github.io/ppsds/"
-version: 0.0.1
+version: 0.0.2
 keywords:
   - probabilistic prediction
   - stochastic dynamical systems
@@ -28,6 +28,23 @@ authors:
 # **references** rather than a `preferred-citation`, because this package is not the artifact of
 # a single paper: it holds a family of predictors, and more than one paper contributes to it.
 references:
+  # This one is published, so it is fully specified below and its DOI resolves. It is the source
+  # of the epsilon-logarithm score and of the predictability upper bound the `predictability`
+  # subpackage implements.
+  - type: article
+    title: "Probabilistic predictability of stochastic dynamical systems"
+    authors:
+      - family-names: Xu
+        given-names: Tao
+      - family-names: Li
+        given-names: Yushan
+      - family-names: He
+        given-names: Jianping
+    journal: "Automatica"
+    volume: 174
+    issue: 112160
+    year: 2025
+    doi: "10.1016/j.automatica.2025.112160"
   - type: article
     title: "Distributionally Robust Probabilistic Prediction for Stochastic Dynamical Systems"
     authors:

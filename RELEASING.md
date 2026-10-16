@@ -96,7 +96,7 @@ python -m venv /tmp/rehearse
 # and the check that actually proves the sdist is complete: install from it and run an example
 tar -xzf dist/ppsds-*.tar.gz -C /tmp
 /tmp/rehearse/bin/pip install /tmp/ppsds-<version>/
-/tmp/rehearse/bin/python /tmp/ppsds-<version>/examples/scene1_own_environment/quickstart.py
+/tmp/rehearse/bin/python /tmp/ppsds-<version>/examples/apply_drpp_to_your_own_env/quickstart.py
 ```
 
 Once the repository is public, create the `pypi` and `testpypi` environments (Settings →

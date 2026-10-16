@@ -14,6 +14,10 @@ theme:
     # non-collapsible headers with un-indented children. The default gives a collapsible group
     # with indented children, which is what a two-page section wants.
     - navigation.top
+    # Previous/next links at the foot of every page. The nav order is the recommended route, so
+    # these turn the shelf order into "keep going" -- the reader who finishes a page is offered the
+    # one we would have recommended next rather than being dropped back into the sidebar.
+    - navigation.footer
     - content.code.copy
     - content.action.edit
     - search.highlight
@@ -29,11 +33,31 @@ theme:
         icon: material/brightness-4
         name: Switch to the light theme
 
+# Two small files of our own, loaded by every page: the header buttons that fold the navigation
+# column and the table of contents (`docs/assets/sidebars.{js,css}`). Material has no desktop
+# toggle for either, and the Play page's game is in an iframe whose width is what those two columns
+# leave behind -- so folding them is worth two buttons. Written here rather than pulled from the
+# plugin ecosystem, which would put a third-party package inside the docs build of a published
+# package; `--strict` fails the build if either file goes missing.
+extra_css:
+  - assets/sidebars.css
+extra_javascript:
+  - assets/sidebars.js
+
+# The order is the route a reader is most likely to take, not the order the code was written in:
+# play first (no install, thirty seconds), then the rigorous version of the same thing, then the
+# concepts, then the path where you have an environment of your own. `map.md` draws the graph for
+# readers who would rather navigate themselves than follow the shelf order.
 nav:
   - Home: index.md
+  - The betting game:
+      - Play it: understand_ppsds_by_pmf_betting/index.md
+      - …then measure it properly: understand_ppsds_by_pmf_betting/experiment.md
   - Getting Started: getting-started.md
   - Concepts: concepts.md
+  - Predictability: predictability.md
   - Examples: examples.md
+  - Map: map.md
   - Developer Guide:
       - Writing a new family: extending.md
       - Troubleshooting: extending-faq.md

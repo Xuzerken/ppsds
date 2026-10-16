@@ -40,3 +40,12 @@ environment you already have, none of this is needed.
 ::: ppsds.numerics.linalg
 
 ::: ppsds.numerics.random_variables
+
+## Where to go next
+
+This page is a reference, not a route. If you arrived here from a search:
+
+- **What the guarantee costs, before you rely on it**: [Concepts](concepts.md)
+- **Get something running first**: [Getting Started](getting-started.md)
+- **Which subpackage is which**: [the map](map.md) has the whole public surface, one line each
+- **Every example, with its real output**: [Examples](examples.md)

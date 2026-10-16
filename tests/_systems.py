@@ -4,7 +4,8 @@ Two systems, both deliberately tiny (2 states, 1 input) so that one cone program
 milliseconds rather than seconds:
 
 - :func:`linear_ambiguity_set` -- the same parameters
-  ``examples/scene1_own_environment/quickstart.py`` declares, so the tests and the first example
+  ``examples/apply_drpp_to_your_own_env/quickstart.py`` declares, so the tests and the first
+  example
   talk about the same system rather than two lookalikes.
 - :func:`nonlinear_ambiguity_set` -- a damped pendulum, standing in for the
   ``NonlinearAmbiguitySet`` path without dragging in the 12-state ``NLink``.
@@ -16,12 +17,16 @@ test's mutation leak into the next.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
+from scipy.stats import multivariate_normal
 
 from ppsds.ambiguity.additive_drift.conic_moment import (
     LinearAmbiguitySet,
     NonlinearAmbiguitySet,
 )
+from ppsds.numerics.random_variables import multivariate_uniform
 
 #: The uncertainty radii of the linear system: drift perturbation size, then the noise-mean
 #: and covariance radii. Note that ``mu`` is a **squared** radius while ``A`` / ``B`` are not.
@@ -123,3 +128,60 @@ def true_step(x, u, rng):
 def control_at(i):
     """A deterministic, non-trivial input sequence (zero input hides sign errors)."""
     return np.array([0.1 * np.cos(i)])
+
+
+# --- the predictability paper's system -------------------------------------------------------
+#
+# "Probabilistic predictability of stochastic dynamical systems", Automatica 174 (2025) 112160.
+# This is the system its only figure simulates, kept here so the tests can check the library
+# against the published closed forms rather than against itself.
+
+#: The shear system: ``x' = PAPER_A @ x + w``.
+PAPER_A = np.array([[1.0, 1.0], [0.0, 1.0]])
+
+#: The paper's process noise: i.i.d. uniform on the cube ``[-1, 1] ** 2``.
+PAPER_ENTROPY_NOISE = math.log(4.0)
+
+#: ``H(U([-1,1]^2) || N(0, I))``, the paper's misspecified predictor against the truth.
+PAPER_CROSS_ENTROPY_GAUSSIAN = math.log(2 * math.pi) + 1.0 / 3.0
+
+#: The radii the paper sweeps. ``0.5`` is the special one: the truth is piecewise constant on
+#: the ``2 eps`` lattice there, so the upper bound is attained rather than merely approached.
+PAPER_EPSILONS = (0.25, 0.5, 0.75)
+
+
+def paper_noise_law():
+    """A fresh ``multivariate_uniform`` on ``[-1, 1] ** 2`` -- the paper's process noise."""
+    return multivariate_uniform(low=-np.ones(2), high=np.ones(2))
+
+
+def paper_predictor_law():
+    """The paper's deliberately misspecified predictor: a standard Gaussian on the noise.
+
+    It is misspecified on purpose -- the paper's point is that the ``O(eps)`` approximation
+    holds for a *non*-optimal predictor.
+    """
+    return multivariate_normal(mean=np.zeros(2), cov=np.eye(2))
+
+
+def paper_upper_bound(eps):
+    """``d_x log(2 eps) - h_d(q)`` for the paper's system, from the published numbers."""
+    volume = 2 * math.log(2 * eps) if eps > 0 else 0.0
+    return volume - PAPER_ENTROPY_NOISE
+
+
+def paper_approximation(eps):
+    """``d_x log(2 eps) - H(q || p)`` for the paper's system, from the published numbers."""
+    volume = 2 * math.log(2 * eps) if eps > 0 else 0.0
+    return volume - PAPER_CROSS_ENTROPY_GAUSSIAN
+
+
+def paper_noise_draws(n_traj, n_step, seed):
+    """``(n_traj * n_step, 2)`` uniform noise draws, reproducible from ``seed``.
+
+    The predictor predicts the *noise*, so the realised outcome the score is evaluated at is the
+    noise draw itself -- the drift cancels out and the drift never has to be simulated. That is
+    what makes the paper's experiment a single vectorised pass.
+    """
+    rng = np.random.default_rng(seed)
+    return rng.uniform(-1.0, 1.0, size=(n_traj * n_step, 2))

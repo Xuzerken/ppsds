@@ -3,7 +3,7 @@ covariance (Pendulum).
 
 Run::
 
-    python examples/scene1_own_environment/pendulum_singular_covariance.py      # about 5 seconds
+    python examples/apply_drpp_to_your_own_env/pendulum_singular_covariance.py      # about 5 seconds
 
 Its companion ``with_standard_gym_env.py`` (Acrobot) covers "**when** does DRPP actually win".
 This one covers a different pitfall that stops you cold when wiring up a real environment --
@@ -169,4 +169,4 @@ if __name__ == '__main__':
     print()
     print('  That is not a defect but how it is priced: **average performance traded for a')
     print('  worst-case floor**. For when that insurance pays off, see the companion piece:')
-    print('      python examples/scene1_own_environment/with_standard_gym_env.py  # Acrobot, with a two-regime comparison')
+    print('      python examples/apply_drpp_to_your_own_env/with_standard_gym_env.py  # Acrobot, with a two-regime comparison')

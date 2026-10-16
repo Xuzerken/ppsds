@@ -216,6 +216,10 @@ upper bound, not the DRPP lower bound: the DRPP lower bound is
 `value_lower_bound_eigvec_fixed()`, and within a single set the gap between those two is the price
 of the relaxation.
 
+The predictability half of that pair now has its own page — see **[Predictability](predictability.md)**
+for the `epsilon`-logarithm score, the upper bound `d log(2 eps) - h_d(q)`, and how to evaluate a
+predictor you wrote yourself, including one whose prediction is a pmf.
+
 ---
 
 ## The two ways to use the package
@@ -264,3 +268,13 @@ than the precision of the nominal model.
   example-specific: `alphas['A']` touches only the superdiagonal of `A` and `alphas['B']` only the
   single entry `B[0, -1]`. That is the structure of the paper's own example; it does not describe
   arbitrary uncertainty in `A` and `B`.
+
+## Where to go next
+
+- **See it declared, step by step**: [Getting Started](getting-started.md) — and the pitfalls that
+  come with the declaration
+- **See the guarantee behave**: [Examples](examples.md), or the simulated-ambiguity story for the
+  two meanings of "worst"
+- **The other side of the question**: [Predictability](predictability.md) — the ceiling, which
+  needs no predictor at all
+- **Widen what the family can express**: [the Developer Guide](extending.md)

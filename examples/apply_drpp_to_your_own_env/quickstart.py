@@ -2,7 +2,7 @@
 
 Run::
 
-    python examples/scene1_own_environment/quickstart.py      # about 1 second, 50 steps
+    python examples/apply_drpp_to_your_own_env/quickstart.py      # about 1 second, 50 steps
 
 This example answers: "I have my own stochastic dynamical system -- how do I use DRPP on it?"
 
@@ -161,5 +161,5 @@ if __name__ == '__main__':
     print("worst-case lower bound**: once the true system departs from your nominal model,")
     print("nominal's score can collapse, whereas DRPP's predictive covariance has already")
     print("accounted for that departure. To see the size of that difference in practice, look at")
-    print("the adversarial experiment (-e worst) under examples/scene2_simulated_ambiguity/:")
+    print("the adversarial experiment (-e worst) under examples/understand_drpp_on_simulated_ambiguity/:")
     print("there each predictor faces the worst SDS chosen **specifically against itself**.")

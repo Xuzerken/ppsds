@@ -48,7 +48,14 @@ CORE_ENTRY_POINTS = (
     'ppsds.ambiguity.additive_drift.conic_moment',
     'ppsds.probabilistic_predictor.drpp.additive_drift.conic_moment',
     'ppsds.scoring_rule.logarithm_score',
+    'ppsds.scoring_rule.epsilon_logarithm_score',
     'ppsds.numerics.linalg',
+    'ppsds.numerics.atom_pmf',
+    'ppsds.dynamics.known_sds',
+    'ppsds.probabilistic_predictor.pmf.atom',
+    'ppsds.predictability.bounds',
+    'ppsds.predictability.entropy',
+    'ppsds.predictability.trajectory',
 )
 
 

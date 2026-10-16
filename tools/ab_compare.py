@@ -40,7 +40,17 @@ import subprocess
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCENE2 = os.path.join('examples', 'scene2_simulated_ambiguity')
+
+#: The scene-2 story directory, **newest name first**. It was renamed on 2026-10-16
+#: (``scene2_simulated_ambiguity`` -> ``understand_drpp_on_simulated_ambiguity``), and ``--base``
+#: checks out a tree that predates the rename -- so the directory is *probed* in each tree rather
+#: than assumed, for the same reason ``RUNNER_SCRIPTS`` is. Getting this wrong does not fail
+#: loudly: the baseline tree would simply report no pkl, and that surfaces as "file sets differ"
+#: rather than as a comparison of numbers.
+SCENE2_CANDIDATES = (
+    os.path.join('examples', 'understand_drpp_on_simulated_ambiguity'),
+    os.path.join('examples', 'scene2_simulated_ambiguity'),
+)
 
 #: ``--base`` is **required**, deliberately. It used to default to the commit this harness was
 #: first written against (``8c9aea4``, the baseline of the second structural review) -- a
@@ -49,13 +59,12 @@ SCENE2 = os.path.join('examples', 'scene2_simulated_ambiguity')
 #: what a change is allowed to affect, so it should be stated at the call site.
 #: The usage in ``CONTRIBUTING.md`` is ``--base <the commit you branched from>``.
 
-#: Where the batch runner may live inside a tree, newest layout first. The runner moved from
-#: ``scene2_simulated_ambiguity/exp_gym.py`` to
-#: ``scene2_simulated_ambiguity/batch_experiment/run.py``, and a baseline ref predates that,
-#: so each tree is probed rather than assumed.
-RUNNER_LAYOUTS = (
-    (os.path.join(SCENE2, 'batch_experiment'), 'run.py'),
-    (SCENE2, 'exp_gym.py'),
+#: Where the batch runner may live **inside the scene-2 directory**, newest layout first. The
+#: runner moved from ``exp_gym.py`` to ``batch_experiment/run.py``, and a baseline ref predates
+#: that, so each tree is probed rather than assumed.
+RUNNER_SCRIPTS = (
+    ('batch_experiment', 'run.py'),
+    ('', 'exp_gym.py'),
 )
 
 #: A/B configurations: all ``-t 5`` (small), all ``-c none`` (safe for every model).
@@ -125,24 +134,34 @@ def compare(a, b, path=''):
 # Running one side
 # ----------------------------------------------------------------------
 
+def scene2_dir(root):
+    """The scene-2 directory inside the tree at ``root``, newest name first."""
+    for rel in SCENE2_CANDIDATES:
+        if os.path.isdir(os.path.join(root, rel)):
+            return rel
+    tried = ', '.join(SCENE2_CANDIDATES)
+    raise SystemExit(f'no scene-2 directory found under {root}; tried: {tried}')
+
+
 def find_runner(root):
-    """Locate the batch runner inside ``root``, tolerating the layout change."""
-    for rel_dir, script in RUNNER_LAYOUTS:
-        if os.path.isfile(os.path.join(root, rel_dir, script)):
-            return rel_dir, script
-    tried = ', '.join(os.path.join(d, s) for d, s in RUNNER_LAYOUTS)
+    """Locate the batch runner inside ``root``, tolerating the rename and the layout change."""
+    scene = scene2_dir(root)
+    for rel_dir, script in RUNNER_SCRIPTS:
+        if os.path.isfile(os.path.join(root, scene, rel_dir, script)):
+            return os.path.join(scene, rel_dir), script
+    tried = ', '.join(os.path.join(scene, d, s) for d, s in RUNNER_SCRIPTS)
     raise SystemExit(f'no batch runner found under {root}; tried: {tried}')
 
 
 def pkl_mtimes(root):
-    """``{relative path: mtime_ns}`` for the pkl files under ``<root>/<SCENE2>/data``.
+    """``{relative path: mtime_ns}`` for the pkl files under ``<root>/<scene-2>/data``.
 
     **mtime**, rather than the set of files, decides what "this run produced": the working
     tree may already hold a ``data/`` from an earlier run, and ``-f`` **overwrites** those
     files rather than creating new ones, so a set difference would reveal nothing. An mtime
     change treats "created" and "overwritten" alike.
     """
-    base = os.path.join(root, SCENE2, 'data')
+    base = os.path.join(root, scene2_dir(root), 'data')
     out = {}
     for dirpath, _dirnames, filenames in os.walk(base):
         for fn in filenames:
@@ -216,8 +235,8 @@ def main():
             only_a = a_new - b_new
             only_b = b_new - a_new
             common = sorted(a_new & b_new)
-            base_data = os.path.join(wt, SCENE2, 'data')
-            cur_data = os.path.join(REPO_ROOT, SCENE2, 'data')
+            base_data = os.path.join(wt, scene2_dir(wt), 'data')
+            cur_data = os.path.join(REPO_ROOT, scene2_dir(REPO_ROOT), 'data')
 
             if only_a or only_b:
                 all_diffs.append((tag, 'file sets differ',

@@ -1,0 +1,53 @@
+/* Folding the two columns away, and the chevron that does it.
+ *
+ * Material has no desktop toggle for either column -- its own drawer is mobile-only -- and the two
+ * of them cost 484 of 1440 pixels on a laptop. That matters here more than on most sites: the Play
+ * page embeds the game in an iframe whose width is whatever is left after both columns, and at 688
+ * pixels the game is below its own breakpoint for the desktop layout. Folding them is how a reader
+ * gives the thing on the page the room it was written for.
+ *
+ * Folding narrows a column to a rail rather than removing it. The chevron sits at that column's
+ * inner edge -- the edge facing the text -- and a rail keeps it in the one place the reader will
+ * look for it, which `display: none` cannot do: it takes the only way back with it.
+ *
+ * The breakpoints are Material's own (76.25em for the navigation column, 60em for the table of
+ * contents). They are not decoration: below them those columns are the *drawer*, parked off-canvas,
+ * and narrowing one would leave a rail floating where the drawer used to be. So every rule here
+ * only applies where the column is a column.
+ */
+.ppsds-fold {
+  position: absolute; top: .1rem; z-index: 1; width: 1.2rem; height: 1.2rem;
+  padding: 0; margin: 0; border: 0; background: none; cursor: pointer;
+  color: var(--md-default-fg-color--light);
+}
+.ppsds-fold:hover { color: var(--md-accent-fg-color); }
+.ppsds-fold svg { display: block; width: 1.2rem; height: 1.2rem; fill: currentcolor; }
+
+/* One chevron per column, each pointing at the edge its column folds towards and turning round
+   once it has. */
+.ppsds-fold--toc svg { transform: rotate(180deg); }
+.ppsds-fold--nav[aria-pressed="true"] svg { transform: rotate(180deg); }
+.ppsds-fold--toc[aria-pressed="true"] svg { transform: rotate(0deg); }
+
+/* Below the breakpoints the column is the drawer, and the drawer already has a close button: a
+   second one inside it would be one control too many for the same job. */
+@media screen and (max-width: 76.25em) {
+  .ppsds-fold--nav { display: none; }
+}
+@media screen and (max-width: 60em) {
+  .ppsds-fold--toc { display: none; }
+}
+
+@media screen and (min-width: 76.25em) {
+  /* A row of its own above the navigation, so the chevron never lands on a nav item. */
+  .md-sidebar--primary .md-sidebar__inner { padding-top: 1.5rem; }
+  .md-sidebar--primary .ppsds-fold { right: .2rem; }
+  body.ppsds-nav-folded .md-sidebar--primary { width: 2rem; }
+  body.ppsds-nav-folded .md-sidebar--primary .md-sidebar__scrollwrap { display: none; }
+}
+@media screen and (min-width: 60em) {
+  .md-sidebar--secondary .md-sidebar__inner { padding-top: 1.5rem; }
+  .md-sidebar--secondary .ppsds-fold { left: .2rem; }
+  body.ppsds-toc-folded .md-sidebar--secondary { width: 2rem; }
+  body.ppsds-toc-folded .md-sidebar--secondary .md-sidebar__scrollwrap { display: none; }
+}

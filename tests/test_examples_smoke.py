@@ -21,12 +21,13 @@ import pytest
 
 EXAMPLES = Path(__file__).resolve().parents[1] / 'examples'
 
-#: The teaching examples: one per scene, small and quick. These run by default.
+#: The teaching examples: one per story, small and quick. These run by default.
 FAST = sorted(EXAMPLES.rglob('quickstart.py'))
 
-#: The heavier scene-1 pieces: they identify a model from rollouts of an off-the-shelf gym
-#: environment (Acrobot is a 6-dimensional chaotic system), which costs tens of seconds. Marked
-#: ``slow`` so the inner development loop stays fast, and selected explicitly in CI.
+#: The heavier pieces of the "apply DRPP to your own environment" story: they identify a model
+#: from rollouts of an off-the-shelf gym environment (Acrobot is a 6-dimensional chaotic system),
+#: which costs tens of seconds. Marked ``slow`` so the inner development loop stays fast, and
+#: selected explicitly in CI.
 SLOW = sorted(p for name in ('with_standard_gym_env.py', 'pendulum_singular_covariance.py')
               for p in EXAMPLES.rglob(name))
 
@@ -57,11 +58,14 @@ def run_example(script: Path, timeout: int) -> subprocess.CompletedProcess:
     return proc
 
 
-def test_a_quickstart_exists_for_every_scene():
+def test_a_quickstart_exists_for_every_story():
     """Keeps the parametrized tests below from silently becoming empty."""
-    assert len(FAST) >= 2, f'expected at least one quickstart per scene, found {FAST}'
-    for scene in ('scene1_own_environment', 'scene2_simulated_ambiguity'):
-        assert any(scene in str(p) for p in FAST), f'no quickstart under {scene}'
+    assert len(FAST) >= 4, f'expected at least one quickstart per story, found {FAST}'
+    for story in ('apply_drpp_to_your_own_env',
+                  'understand_drpp_on_simulated_ambiguity',
+                  'understand_predictability',
+                  'understand_ppsds_by_pmf_betting'):
+        assert any(story in str(p) for p in FAST), f'no quickstart under {story}'
 
 
 @pytest.mark.parametrize('script', FAST, ids=lambda p: p.parent.name)

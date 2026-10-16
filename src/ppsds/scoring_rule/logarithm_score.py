@@ -16,27 +16,3 @@ class LogarithmScore:
     def score(self, multivariate_rv, x):
         """Returns ``logpdf(x)``."""
         return multivariate_rv.logpdf(x)
-
-
-class LogarithmScoreArgs(LogarithmScore):
-    """Construct the distribution from positional arguments first, then score."""
-
-    def __init__(self, multivariate_rv):
-        super().__init__()
-        self.multivariate_rv = multivariate_rv
-
-    def score_args(self, args, x):
-        """``args`` are the **positional** arguments used to construct the distribution."""
-        return self.multivariate_rv(*args).logpdf(x)
-
-
-class LogarithmScoreKargs(LogarithmScore):
-    """Construct the distribution from keyword arguments first, then score."""
-
-    def __init__(self, multivariate_rv):
-        super().__init__()
-        self.multivariate_rv = multivariate_rv
-
-    def score_kargs(self, kargs, x):
-        """``kargs`` are the **keyword** arguments used to construct the distribution."""
-        return self.multivariate_rv(*kargs).logpdf(x)

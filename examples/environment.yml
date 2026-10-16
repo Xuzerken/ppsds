@@ -2,7 +2,7 @@
 #
 # `pip install -e ".[dev,experiments]"` builds an equivalent environment without conda; this file
 # exists so the batch runner's scripts have something concrete to create --
-# examples/scene2_simulated_ambiguity/batch_experiment/run.sh (Linux/WSL) and run.ps1 (Windows)
+# examples/understand_drpp_on_simulated_ambiguity/batch_experiment/run.sh (Linux/WSL) and run.ps1 (Windows)
 # both activate it by name, so keep `name:` and those scripts in step. The versions below are the
 # ones this repository is tested against; the package's own lower bounds live in pyproject.toml.
 #

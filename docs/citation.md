@@ -37,3 +37,12 @@ conic-moment ambiguity sets, and the worst-case bounds in `ppsds.ambiguity`.
 ```
 
 See [Concepts](concepts.md) for what this family optimizes and what its guarantee costs.
+
+## Where to go next
+
+- **Reproduce the second paper's figure**: the predictability story in
+  [Examples](examples.md) — six golden values you can check by hand, then the figure
+- **Cite the software rather than the paper**: the BibTeX entry above is what `CITATION.cff`
+  produces from GitHub's *Cite this repository* button
+- **What is implemented, and what is not**: [Concepts](concepts.md) § *Honest limits*
+- **Extend it into a paper of your own**: [the Developer Guide](extending.md)

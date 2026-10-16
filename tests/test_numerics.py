@@ -61,6 +61,8 @@ def test_multivariate_uniform_density_is_one_over_the_volume():
     assert dist.pdf(np.array([3.0, 1.0])) == 0        # outside the box in one coordinate
     assert dist.pdf(np.array([1.0, -1.0])) == 0
 
-# NOTE: `multivariate_gmm` has zero callers. It deliberately gets no behavioral tests -- writing
-# tests for code nothing calls would freeze an interface that is free to change, which is the
-# opposite of what an inventory of dead code is for.
+# NOTE: a `multivariate_gmm` class used to live beside `multivariate_uniform` and, having zero
+# callers, deliberately got no tests. It was deleted on 2026-10-16 -- an untested class nothing
+# calls is a claim the package cannot back up, and "kept for reference" is what the git history is
+# for. See `docs/strategy/MARKETING.md` on why every shipped module needs a sentence saying what
+# it is for.

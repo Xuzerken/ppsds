@@ -1,4 +1,9 @@
-"""Gymnasium environment layer for DRPP -- **scene 2 only** (custom simulated ambiguity).
+"""The Gymnasium environment layer: simulate a system you declared an ambiguity set for.
+
+You do not need this to *use* a predictor — putting one on your own environment is a declaration
+and nothing else (see :mod:`ppsds.probabilistic_predictor` + :mod:`ppsds.scoring_rule`). This
+subpackage is for the other direction: declaring an ambiguity set by hand and generating dynamics
+from it.
 
 There is exactly one generic :class:`Env`, combining an ambiguity set with a
 :class:`DynamicsMode`; it is not subclassed per system. Everything that differs between
@@ -11,8 +16,11 @@ that adversarialism is intrinsic to it: only one of the four modes
 (:class:`~ppsds.environment.dynamics_mode.EigvecFixedAdversarialDynamics`) is adversarial,
 while fixed / random / pre-sampled are not.
 
-Scene 1 (applying DRPP to **your own** gymnasium environment) does not need this
-subpackage -- only :mod:`ppsds.probabilistic_predictor` + :mod:`ppsds.scoring_rule`.
+The scope claim above — "simulate a system you declared a set for" — is about ``Env``, the
+ambiguity-composing one. :class:`KnownSdsEnv` is the exception, and deliberately so: it steps a
+system that is **known exactly**, with no ambiguity set at all, which is the setting the
+predictability questions are asked in. So read the sentence as covering ``Env``, not the whole
+subpackage.
 """
 
 from .base import Env
@@ -23,9 +31,11 @@ from .dynamics_mode import (
     PreSampledDynamics,
     EigvecFixedAdversarialDynamics,
 )
+from .known_sds import KnownSdsEnv
 
 __all__ = [
     "Env",
+    "KnownSdsEnv",
     "DynamicsMode",
     "FixedDynamics",
     "RandomDynamics",

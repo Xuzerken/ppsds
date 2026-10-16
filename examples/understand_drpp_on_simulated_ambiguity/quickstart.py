@@ -20,14 +20,14 @@ whatever way its ``DynamicsMode`` specifies.
 
 Run (a few seconds)::
 
-    python examples/scene2_simulated_ambiguity/quickstart.py
+    python examples/understand_drpp_on_simulated_ambiguity/quickstart.py
 
 The runtime is dominated by Eig-DRPP, which solves a cone program at every step. Lower
 ``N_TRAJ`` or ``T`` below to make it faster.
 
 This script deliberately uses **only the core ppsds surface** -- no ``ppsds.experiment``, no
 cache, no command line. For the multi-process batch runner see
-``examples/scene2_simulated_ambiguity/batch_experiment/run.py``.
+``examples/understand_drpp_on_simulated_ambiguity/batch_experiment/run.py``.
 """
 
 import numpy as np

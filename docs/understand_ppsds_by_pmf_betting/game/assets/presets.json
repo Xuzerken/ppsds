@@ -1,0 +1,346 @@
+{
+ "shear": {
+  "key": "shear",
+  "title": "Long Table",
+  "blurb": "A puck sliding down a long table: each round it drifts further along the rail, so the rounds spread out. This is the system from the predictability paper.",
+  "motion": "Each round the puck slides along the rail by its own distance from the rail -- the further off the rail it sits, the further along it slides.",
+  "upper_bounds": {
+   "0.25": -2.772588722239781,
+   "0.5": -1.3862943611198906,
+   "0.75": -0.5753641449035618
+  },
+  "drift_matrix": [
+   [
+    1.0,
+    1.0
+   ],
+   [
+    0.0,
+    1.0
+   ]
+  ],
+  "noise": {
+   "kind": "uniform",
+   "low": [
+    -1.0,
+    -1.0
+   ],
+   "high": [
+    1.0,
+    1.0
+   ]
+  },
+  "hidden_noise": false,
+  "support": {
+   "kind": "bounded",
+   "low": [
+    -1.0,
+    -1.0
+   ],
+   "high": [
+    1.0,
+    1.0
+   ]
+  },
+  "safe": {
+   "0.25": {
+    "n_atoms": 16,
+    "guaranteed": true,
+    "worst_case_roi": 0.0625
+   },
+   "0.5": {
+    "n_atoms": 4,
+    "guaranteed": true,
+    "worst_case_roi": 0.25
+   },
+   "0.75": {
+    "n_atoms": 4,
+    "guaranteed": true,
+    "worst_case_roi": 0.25
+   }
+  },
+  "x0": [
+   0.0,
+   0.0
+  ],
+  "epsilons": [
+   0.25,
+   0.5,
+   0.75
+  ]
+ },
+ "rotation": {
+  "key": "rotation",
+  "title": "Roulette",
+  "blurb": "The table turns 15 degrees every round and the landing wobbles, so the puck keeps to a circle around the centre.",
+  "motion": "Each round the table turns another 15 degrees, so the puck goes round the centre at a fixed distance from it.",
+  "upper_bounds": {
+   "0.25": -2.8378770664093453,
+   "0.5": -1.4515827052894548,
+   "0.75": -0.640652489073126
+  },
+  "drift_matrix": [
+   [
+    0.9659258262890683,
+    -0.25881904510252074
+   ],
+   [
+    0.25881904510252074,
+    0.9659258262890683
+   ]
+  ],
+  "noise": {
+   "kind": "gaussian",
+   "mean": [
+    0.0,
+    0.0
+   ],
+   "cov": [
+    [
+     0.25,
+     0.0
+    ],
+    [
+     0.0,
+     0.25
+    ]
+   ]
+  },
+  "hidden_noise": false,
+  "support": {
+   "kind": "gaussian"
+  },
+  "safe": {
+   "0.25": {
+    "n_atoms": 36,
+    "guaranteed": false,
+    "worst_case_roi": 0.0,
+    "window_sigma": 3.0
+   },
+   "0.5": {
+    "n_atoms": 9,
+    "guaranteed": false,
+    "worst_case_roi": 0.0,
+    "window_sigma": 3.0
+   },
+   "0.75": {
+    "n_atoms": 4,
+    "guaranteed": false,
+    "worst_case_roi": 0.0,
+    "window_sigma": 3.0
+   }
+  },
+  "x0": [
+   1.0,
+   0.0
+  ],
+  "epsilons": [
+   0.25,
+   0.5,
+   0.75
+  ]
+ },
+ "damped": {
+  "key": "damped",
+  "title": "Whirlpool",
+  "blurb": "The table spirals inward, so each round is a smaller step than the last and the action crowds into a shrinking region.",
+  "motion": "Each round the table turns by about 17 degrees and shrinks to nine tenths of its size, so the puck spirals in and every round is a smaller one.",
+  "upper_bounds": {
+   "0.1": -2.197224577336219,
+   "0.2": -0.8109302162163285,
+   "0.4": 0.575364144903562
+  },
+  "drift_matrix": [
+   [
+    0.8598028402130454,
+    -0.2659681859952056
+   ],
+   [
+    0.2659681859952056,
+    0.8598028402130454
+   ]
+  ],
+  "noise": {
+   "kind": "uniform",
+   "low": [
+    -0.3,
+    -0.3
+   ],
+   "high": [
+    0.3,
+    0.3
+   ]
+  },
+  "hidden_noise": false,
+  "support": {
+   "kind": "bounded",
+   "low": [
+    -0.3,
+    -0.3
+   ],
+   "high": [
+    0.3,
+    0.3
+   ]
+  },
+  "safe": {
+   "0.1": {
+    "n_atoms": 9,
+    "guaranteed": true,
+    "worst_case_roi": 0.1111111111111111
+   },
+   "0.2": {
+    "n_atoms": 4,
+    "guaranteed": true,
+    "worst_case_roi": 0.25
+   },
+   "0.4": {
+    "n_atoms": 1,
+    "guaranteed": true,
+    "worst_case_roi": 1.0
+   }
+  },
+  "x0": [
+   1.5,
+   0.0
+  ],
+  "epsilons": [
+   0.1,
+   0.2,
+   0.4
+  ]
+ },
+ "stacked_deck": {
+  "key": "stacked_deck",
+  "title": "Stacked Deck",
+  "blurb": "The Long Table with a stacked deck: landings pile up in the middle band and thin out towards the rails.",
+  "motion": "Each round the puck slides along the rail by its own distance from the rail -- the further off the rail it sits, the further along it slides.",
+  "upper_bounds": {
+   "0.25": -2.3130082932218485,
+   "0.5": -0.926713932101958,
+   "0.75": -0.11578371588562919
+  },
+  "drift_matrix": [
+   [
+    1.0,
+    1.0
+   ],
+   [
+    0.0,
+    1.0
+   ]
+  ],
+  "noise": {
+   "kind": "blocks",
+   "boxes": [
+    [
+     [
+      -1.0,
+      -1.0
+     ],
+     [
+      1.0,
+      -0.3333333333333333
+     ]
+    ],
+    [
+     [
+      -1.0,
+      -0.3333333333333333
+     ],
+     [
+      1.0,
+      0.3333333333333333
+     ]
+    ],
+    [
+     [
+      -1.0,
+      0.3333333333333333
+     ],
+     [
+      1.0,
+      1.0
+     ]
+    ]
+   ],
+   "weights": [
+    0.1,
+    0.8,
+    0.1
+   ]
+  },
+  "hidden_noise": false,
+  "support": {
+   "kind": "bounded",
+   "low": [
+    -1.0,
+    -1.0
+   ],
+   "high": [
+    1.0,
+    1.0
+   ]
+  },
+  "safe": {
+   "0.25": {
+    "n_atoms": 16,
+    "guaranteed": true,
+    "worst_case_roi": 0.0625
+   },
+   "0.5": {
+    "n_atoms": 4,
+    "guaranteed": true,
+    "worst_case_roi": 0.25
+   },
+   "0.75": {
+    "n_atoms": 4,
+    "guaranteed": true,
+    "worst_case_roi": 0.25
+   }
+  },
+  "x0": [
+   0.0,
+   0.0
+  ],
+  "epsilons": [
+   0.25,
+   0.5,
+   0.75
+  ]
+ },
+ "house_rules": {
+  "key": "house_rules",
+  "title": "House Rules",
+  "blurb": "Four corners, four different odds, and the house is not saying which is which. The payout radius is the only thing you are told.",
+  "motion": "Each round the table turns another 15 degrees, so the puck goes round the centre at a fixed distance from it.",
+  "upper_bounds": {},
+  "drift_matrix": [
+   [
+    0.9659258262890683,
+    -0.25881904510252074
+   ],
+   [
+    0.25881904510252074,
+    0.9659258262890683
+   ]
+  ],
+  "noise": {
+   "kind": "unpublished"
+  },
+  "hidden_noise": true,
+  "support": {
+   "kind": "unpublished"
+  },
+  "safe": {},
+  "x0": [
+   1.0,
+   0.0
+  ],
+  "epsilons": [
+   0.25,
+   0.5,
+   0.75
+  ]
+ }
+}

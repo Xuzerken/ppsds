@@ -1,50 +1,66 @@
 # ppsds: probabilistic prediction for stochastic dynamical systems
 
-`ppsds` predicts the next state of a stochastic dynamical system as a **distribution** rather
-than a point. It is for systems you can **step** (a simulator, or a Gymnasium environment) and can
-model, but not exactly: an underactuated robot, a vehicle or drone held near its operating point, a
-plant inside a process simulator.
+**How predictable is a system you only partly know?** `ppsds` answers from both sides: the
+**ceiling** any prediction could reach on a system you know exactly, and a predictor that comes
+with a **floor** over every system you are willing to admit.
 
-An ordinary predictor trusts that model. That works until the real system drifts away from it, and
-then the prediction is quietly too narrow: **overconfident** exactly when you needed it to be
-honest.
+![Placing stacks where a stochastic system will go next, then watching the share that paid and its score settle](assets/demo.gif)
 
-`ppsds` ships one remedy today: **DRPP**, distributionally robust probabilistic prediction. You
-declare an **ambiguity set**, the systems you are willing to admit, and DRPP returns the
-predictive distribution whose *worst-case* expected score over that set is as high as it can be: a
-**floor that holds for every system in the set**, for the price of a little average performance.
-[Concepts](concepts.md) is about what that costs and what it assumes.
+**[Play it](understand_ppsds_by_pmf_betting/index.md)** — thirty seconds on that table explains
+what this package is better than a paragraph can.
 
-That DRPP is the one for **conic-moment** ambiguity sets, on an **additive-drift** system. It is
-the first of a template rather than a single method: each family of ambiguity sets yields its own
-DRPP, and the `drpp` subpackage is built to hold more.
+??? note "What you are looking at, and how it maps onto the package"
 
-Zoom out one level. DRPP is one *kind* of **probabilistic predictor** (PP). The kinds sit side by
-side in `ppsds.probabilistic_predictor`, one subpackage each, and `drpp` is the first of them. A
-data-driven setting would add a **learning-based PP** there; a theoretical one would add the
-**optimal PP** that attains **probabilistic predictability**, the best a prediction of a *known*
-system can do. That upper bound, and DRPP's guaranteed lower bound for a system known only through
-an ambiguity set, answer the same question from two sides.
+    A puck moves around a table. You put stacks where you think it will land next, the dealer drops
+    a ball, and every stack within `epsilon` of the landing pays its share of your bet. That is the
+    whole idea with the abstraction removed — the three things on screen are the three things the
+    package is made of:
+
+    | on screen | in the package |
+    |---|---|
+    | the moving puck | the **system** — a drift plus a known noise law |
+    | the stacks you place | the **probabilistic predictor** — a pmf over where the puck will be |
+    | how they pay | the **scoring rule** — the `epsilon`-logarithm score |
+
+    Playing it is free, needs no install, and keeps nothing: the page has no server behind it.
+    When you want the same thing done rigorously, the bets you place there export to a file the
+    examples read back — that is the second half of
+    [that story](understand_ppsds_by_pmf_betting/index.md).
+
+## Install
 
 ```
 pip install ppsds
 ```
 
-## Start here
+Core dependencies are `numpy`, `scipy`, `cvxpy` and `gymnasium`; Python 3.10 or newer. Only the
+experiment and plotting periphery needs more:
 
-| | |
-|---|---|
-| **[Getting Started](getting-started.md)** | install it, run something, put it on your own system, and the pitfalls |
-| **[Concepts](concepts.md)** | what is optimized, what the worst case may touch, what the guarantee costs |
-| **[Examples](examples.md)** | every example, with the command and the real output |
-| **[Developer Guide](extending.md)** | write your own family of ambiguity sets, and run an experiment on it |
-| **[Troubleshooting](extending-faq.md)** | the traps, what they look like, and what to do |
-| **[API](api.md)** | generated from the docstrings |
-| **[Citation](citation.md)** | the software citation, and the references it implements |
+```
+pip install "ppsds[experiments]"     # adds matplotlib, pandas, seaborn, tqdm
+```
 
-If you only read one page and you intend to rely on the guarantee, make it
-[Concepts](concepts.md): the guarantee is conditional, and the condition is a declaration you
-write, not something the library can check for you.
+## Where do you want to start?
+
+| …just play with it | …put it on a system of mine | …check it against the papers |
+|---|---|---|
+| <img src="assets/demo.gif" width="260" alt="the betting game"> | <img src="assets/prediction_on_your_system.png" width="260" alt="a true trajectory and the predicted distribution at two steps"> | <img src="assets/predictability.png" width="260" alt="score curves against the predictability ceiling"> |
+| Nothing to install. It is a static page, and it is the fastest way to see what a probabilistic prediction *is*. | You have a simulator or a Gymnasium environment and want a forecast that stays honest when your model drifts. **This is the main path.** | Read the papers, reproduce their figures, or build a predictor of your own kind. |
+| **[Play it →](understand_ppsds_by_pmf_betting/index.md)** | **[Put it on your system →](getting-started.md)** | **[Concepts →](concepts.md)** |
+
+## The examples
+
+Four stories, each self-contained. Every one prints the numbers it talks about.
+
+| Story | For | What it is |
+|---|---|---|
+| `understand_ppsds_by_pmf_betting` | anyone | The game above, then the same move over thousands of trajectories, measured against the ceiling no bettor can beat |
+| `apply_drpp_to_your_own_env` | you have an environment | Four steps to put the predictor on your own system, then the two ways it goes wrong — including why *"my model is bad"* is **not** by itself a reason it wins |
+| `understand_drpp_on_simulated_ambiguity` | you want the semantics | Declare an ambiguity set by hand, grow a system out of it, and watch three predictors face two meanings of "worst" |
+| `understand_predictability` | you want the ceiling | The best any prediction could do on a *known* system, and the paper's figure |
+
+[Examples](examples.md) has the command and the real output for each of them, and
+[the map](map.md) shows how they connect.
 
 ## What "distributionally robust" changes
 
@@ -56,12 +72,9 @@ the set.
 ```
 
 The price is a little average performance: a more conservative predictive covariance. What it
-buys is a floor that holds for every system in the set, and that floor is what the
-[Concepts](concepts.md) page is about, including the part that surprises people: **a predictor
-does not become better by having a worse model**, and the declaration matters more than the
-model's accuracy. See also
-[Two bounds bracket the answer](concepts.md#two-bounds-bracket-the-answer) for what that floor
-costs, and [Extending](extending.md) for how another ambiguity set gets its own DRPP.
+buys is a floor that holds for every system in the set. The part that surprises people — **a
+predictor does not become better by having a worse model**, and the declaration matters more than
+the model's accuracy — is what [Concepts](concepts.md) is about.
 
 ## Two ways to use it
 
@@ -74,3 +87,12 @@ costs, and [Extending](extending.md) for how another ambiguity set gets its own 
 
 [Getting Started](getting-started.md) covers the first; [Concepts](concepts.md) and
 [Examples](examples.md) cover both.
+
+## Where to go next
+
+- **Thirty seconds, no install**: [play the betting game](understand_ppsds_by_pmf_betting/index.md)
+- **You have an environment**: [Getting Started](getting-started.md) puts a predictor on it
+- **You want the theory**: [Concepts](concepts.md), then
+  [Predictability](predictability.md) for the other side of the same question
+- **You want to extend it**: [Developer Guide](extending.md) — a new family of ambiguity sets,
+  end to end

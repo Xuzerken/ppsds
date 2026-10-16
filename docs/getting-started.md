@@ -35,7 +35,7 @@ split; the short version is that the predictors and `ppsds.environment` are core
 ## The smallest thing that runs
 
 ```bash
-python examples/scene1_own_environment/quickstart.py
+python examples/apply_drpp_to_your_own_env/quickstart.py
 ```
 
 About one second, 50 steps, on a two-state system that stands in for "your own environment":
@@ -57,7 +57,7 @@ set you declared, and each score is computed against the state that actually arr
 ## Putting it on your own environment (scene 1)
 
 Section 0 of
-[`quickstart.py`](https://github.com/Xuzerken/ppsds/blob/main/examples/scene1_own_environment/quickstart.py)
+[`quickstart.py`](https://github.com/Xuzerken/ppsds/blob/main/examples/apply_drpp_to_your_own_env/quickstart.py)
 is a stand-in environment; everything after it is what you actually write. **You do not modify
 the environment.** You declare three things, and the order matters:
 
@@ -107,6 +107,27 @@ The one line that is easy to get wrong is the timing: the predictors are updated
 back. `ppsds` never asks the environment for anything, so nothing about your environment has to
 change to fit it.
 
+![The true trajectory through one plane of Acrobot's state space, with the 90% predictive distribution at two steps: nominal in blue, Eig-DRPP in red, and the robust one visibly wider](assets/prediction_on_your_system.png)
+
+## What DRPP is worth depends on what you declared
+
+Before you commit to the robust predictor, look at what it actually buys. The figure below is the
+same off-the-shelf environment (`Acrobot-v1`) scored with a nominal model identified from
+different amounts of data. The model is bad in every column — that never changes. What changes is
+whether the noise you declared was **too narrow**:
+
+![Mean log score of the nominal and robust predictors, against the estimated residual standard deviation, as the identification data grows from one episode to twenty](assets/when_drpp_pays.png)
+
+- With **one episode** the residual is badly underestimated, `Sigma_bar` comes out far too narrow,
+  and the nominal predictor scores terribly on the errors it meets — while the robust one holds.
+- With **more data** the estimate is calibrated, the nominal predictor wins, and DRPP's robustness
+  is pure insurance premium.
+
+So the decision is not "how good is my model" but **"how confident am I in my own declaration"** —
+and too little identification data is the most common source of misplaced confidence. The
+[`apply_drpp_to_your_own_env`](https://github.com/Xuzerken/ppsds/tree/main/examples/apply_drpp_to_your_own_env)
+story runs the whole comparison and prints the table these two figures are drawn from.
+
 ### If you do not know a nominal model
 
 If your environment has no analytic dynamics, identify a linear model from rollouts first:
@@ -122,8 +143,8 @@ print(format_report(diagnose(res, X_next - X), fit))
 
 That report tells you how large the residual is, whether it still has lag-1 structure, and
 whether its covariance is numerically singular: the numbers your declarations should be based
-on. The [Acrobot](https://github.com/Xuzerken/ppsds/blob/main/examples/scene1_own_environment/with_standard_gym_env.py)
-and [Pendulum](https://github.com/Xuzerken/ppsds/blob/main/examples/scene1_own_environment/pendulum_singular_covariance.py)
+on. The [Acrobot](https://github.com/Xuzerken/ppsds/blob/main/examples/apply_drpp_to_your_own_env/with_standard_gym_env.py)
+and [Pendulum](https://github.com/Xuzerken/ppsds/blob/main/examples/apply_drpp_to_your_own_env/pendulum_singular_covariance.py)
 examples do exactly this, and their output is on the [Examples](examples.md) page.
 
 ## Common pitfalls
@@ -169,7 +190,7 @@ declaration**, not on how accurate the model is. `with_standard_gym_env.py` prin
 side by side.
 
 Pitfalls 5–7 apply to the scene-2 batch runner
-([`examples/scene2_simulated_ambiguity/batch_experiment/`](https://github.com/Xuzerken/ppsds/tree/main/examples/scene2_simulated_ambiguity/batch_experiment)).
+([`examples/understand_drpp_on_simulated_ambiguity/batch_experiment/`](https://github.com/Xuzerken/ppsds/tree/main/examples/understand_drpp_on_simulated_ambiguity/batch_experiment)).
 
 **5. A small `-t` changes the figures, and says so.** The plot indices are fixed in the model
 table, so a `-t` below the largest index emits a `RuntimeWarning` and clamps to the last available

@@ -30,11 +30,12 @@ Submodules
 ========================================  ==============================================
 :mod:`ppsds.ambiguity`                    ambiguity sets, layered by "assumption / family"
                                           (``additive_drift/conic_moment``)
-:mod:`ppsds.dynamics`                     the object being predicted: robotic-arm models + system identification
-:mod:`ppsds.probabilistic_predictor`      probabilistic predictors; one kind per family of ambiguity sets (this release: DRPP over conic-moment sets)
-:mod:`ppsds.scoring_rule`                 logarithmic scoring rule
-:mod:`ppsds.environment`                  Gymnasium environment layer (**serves Scene 2 only**)
-:mod:`ppsds.numerics`                     small numerical utilities (``linalg`` / ``random_variables``)
+:mod:`ppsds.dynamics`                     the object being predicted: robotic-arm models, system identification, and a known system (``known_sds``)
+:mod:`ppsds.probabilistic_predictor`      probabilistic predictors, one subpackage per **kind**: ``drpp`` (one per family of ambiguity sets) and ``pmf`` (predicting with a pmf you supply)
+:mod:`ppsds.scoring_rule`                 scoring rules: ``logarithm_score`` and the neighbourhood ``epsilon_logarithm_score``
+:mod:`ppsds.environment`                  Gymnasium environment layer; ``Env`` serves Scene 2, ``KnownSdsEnv`` steps a system known exactly
+:mod:`ppsds.numerics`                     small numerical utilities (``linalg`` / ``random_variables`` / ``atom_pmf``)
+:mod:`ppsds.predictability`               scoring an arbitrary predictor, and the predictability upper bound of a known system
 :mod:`ppsds.experiment`                   experiment driver and validating cache (needs the ``experiments`` extra)
 :mod:`ppsds.visualization`                plotting (needs the ``experiments`` extra)
 :mod:`ppsds.control_policy`               small control utilities (``DLQR``)
@@ -43,7 +44,7 @@ Submodules
 Usage and further notes: see ``README.md`` and ``docs/tutorials/``.
 """
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 # The minimal public surface for Scene 1. Scene 2 things (Env / the various DynamicsMode)
 # are imported explicitly from their submodules, so that people who only want the predictor
@@ -55,11 +56,19 @@ from .probabilistic_predictor.drpp.additive_drift.conic_moment import (
     eigvec_fixed_minmax,
 )
 from .scoring_rule.logarithm_score import LogarithmScore
+from .scoring_rule.epsilon_logarithm_score import EpsilonLogarithmScore
 from .ambiguity.additive_drift.conic_moment import (
     AdditiveDriftConicMomentSet,
     LinearAmbiguitySet,
     NonlinearAmbiguitySet,
 )
+from .numerics.atom_pmf import AtomPmf
+from .probabilistic_predictor.pmf.atom import (
+    StaticAtomPmfPredictor,
+    DriftShiftedAtomPmfPredictor,
+)
+from .predictability.bounds import approximation_value, predictability_upper_bound
+from .predictability.entropy import cross_entropy, differential_entropy
 
 __all__ = [
     "__version__",
@@ -71,4 +80,12 @@ __all__ = [
     "EigDrpp",
     "eigvec_fixed_minmax",
     "LogarithmScore",
+    "EpsilonLogarithmScore",
+    "AtomPmf",
+    "StaticAtomPmfPredictor",
+    "DriftShiftedAtomPmfPredictor",
+    "predictability_upper_bound",
+    "approximation_value",
+    "differential_entropy",
+    "cross_entropy",
 ]

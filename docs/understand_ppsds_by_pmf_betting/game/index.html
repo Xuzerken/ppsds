@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Place your bets</title>
+<style>
+  :root {
+    --bg: #0e1118; --panel: #161a22; --ink: #e8ecf3; --dim: #9aa5b8;
+    --line: #262d3a; --accent: #63b3ed; --ok: #4ade80; --warn: #f87171; --maybe: #f5c451;
+    --series: #3987e5; --reference: #d55181;
+  }
+  body[data-felt="green"] { --accent: #5eead4; }
+  body[data-felt="red"] { --accent: #fda4af; }
+  body[data-felt="blue"] { --accent: #93c5fd; }
+  * { box-sizing: border-box; }
+  /* One rule for a whole family of bugs: an id selector that sets `display` beats the `hidden`
+     attribute's UA rule, so an element that is "hidden" stays on screen -- and if it is a control,
+     it also eats the clicks meant for whatever is under it. This bit the page three times (the
+     fallback canvas, the stage's deal button, and the stack toolbar). Stated once, globally. */
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  /* An app, not an article: it fits whatever box it is given (it usually arrives inside the docs
+     iframe), the table takes every pixel the control column does not, and nothing scrolls except
+     that column. */
+  body {
+    margin: 0; padding: 12px 16px; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; gap: 8px; height: 100dvh; overflow: hidden;
+  }
+  .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: .01em; white-space: nowrap; }
+  p.lead { color: var(--dim); margin: 0; font-size: 13px; flex: 1 1 300px; min-width: 0; }
+  .actions { display: flex; gap: 6px; margin-left: auto; }
+  button.link { background: none; border: none; color: var(--accent); padding: 0; text-decoration: underline; }
+  #bench { flex: 1 1 auto; display: flex; gap: 6px; min-height: 0; }
+
+  #stage {
+    flex: 1 1 auto; min-width: 0; position: relative; border: 1px solid var(--line);
+    border-radius: 12px; overflow: hidden; background: #0a0d12; cursor: crosshair;
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  /* Zero, explicitly: the 3-D renderer appends its own canvas to #stage *at runtime*, so it lands
+     after every overlay in the document and would otherwise paint over them -- the buttons on the
+     table would be unclickable, and a click on one would fall through to the felt and drop a stack
+     there instead. Every overlay below carries a z-index above this. */
+  #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+  /* `display: block` above would beat the `hidden` attribute's UA rule, leaving the fallback
+     canvas painted over the 3-D one. Say it again, louder. */
+  #stage canvas[hidden] { display: none; }
+  /* The running score, in the corner of the table: the same picture the panel draws, with the
+     reading furniture left off. The pointer belongs to the felt underneath -- only the `?` in the
+     corner is a click target, which is why the wrapper takes no pointer events and the badge takes
+     them back. The version with a tooltip is a click away in the panel.
+     Two ids in the selector on purpose: `#stage canvas` above is the full-bleed renderer rule and
+     it matches this canvas too, so the exception has to out-rank it, not merely follow it. */
+  .chartWrap {
+    position: absolute; left: 12px; top: 12px; z-index: 2; width: min(200px, 40%); height: 58px;
+    pointer-events: none;
+  }
+  .chartWrap .q { pointer-events: auto; }
+  #stage canvas#stageChart {
+    position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%;
+    background: rgba(10, 13, 18, .55); border: 1px solid var(--line); border-radius: 8px;
+  }
+  #stackLabels { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+  .stackLabel {
+    position: absolute; transform: translate(-50%, -100%); font-size: 12px; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--ink); background: rgba(10, 13, 18, .82);
+    border: 1px solid var(--line); border-radius: 6px; padding: 1px 5px; white-space: nowrap;
+  }
+  .stackLabel.held { border-color: var(--ink); background: rgba(10, 13, 18, .95); }
+  /* The one mode in the page, and the only overlay that takes pointer events besides the buttons.
+     It carries the height control, because a height is the one thing a stack has. */
+  #stackTools {
+    position: absolute; z-index: 4; display: flex; align-items: center; gap: 6px; padding: 6px;
+    background: rgba(10, 13, 18, .94); border: 1px solid var(--line); border-radius: 12px;
+  }
+  #stackTools button {
+    min-width: 44px; height: 44px; font-size: 20px; line-height: 1; padding: 0 10px;
+    background: #222a36; border: 1px solid var(--line); border-radius: 10px; color: var(--ink);
+  }
+  #stackTools button.wide { font-size: 14px; }
+  #stackShare {
+    min-width: 52px; text-align: center; font-size: 16px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  #stackWeight { width: clamp(80px, 16vw, 140px); height: 44px; background: none; border: none; }
+
+  /* The `?` in the corner of a control, and the box it opens. Every control on the table that is
+     not simply "carry on" has one: the rules live next to the things they are rules about. */
+  .helped { position: relative; }
+  .q {
+    position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 999px;
+    background: var(--panel); border: 1px solid var(--line); color: var(--dim);
+    font-size: 10px; font-style: normal; line-height: 14px; text-align: center; cursor: pointer;
+    z-index: 1;
+  }
+  .q:hover, .q.asking { border-color: var(--accent); color: var(--accent); }
+  #helpPop {
+    position: fixed; z-index: 30; max-width: min(340px, 78vw); padding: 9px 11px;
+    background: #0d1119; color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
+    font-size: 12.5px; line-height: 1.45; box-shadow: 0 6px 24px rgba(0, 0, 0, .5);
+  }
+  /* The round options: on the table, in the corner, where they describe what you are looking at
+     rather than competing with the felt for attention. Three rows, one per group, each named on its
+     left -- a wall of switches is a wall you have to read, and "which of these change what I see"
+     is not a question the page should make you ask. */
+  .options {
+    position: absolute; right: 10px; top: 50px; z-index: 3; display: flex; flex-direction: column;
+    align-items: stretch; gap: 4px; max-width: 72%;
+  }
+  .optRow {
+    display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 5px 6px;
+  }
+  /* Fixed width and right-aligned, so the three names line up in a column of their own. */
+  .rowLabel {
+    flex: 0 0 46px; text-align: right; font-size: 10px; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--dim); opacity: .75;
+  }
+  .opt {
+    position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
+    font-size: 12px; color: var(--dim); cursor: pointer;
+    background: rgba(10, 13, 18, .84); border: 1px solid var(--line); border-radius: 999px;
+  }
+  .opt:hover { color: var(--ink); }
+  .opt input { accent-color: var(--accent); margin: 0; }
+
+  .dock {
+    position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 3; display: flex;
+    gap: 10px; align-items: flex-end; justify-content: space-between; pointer-events: none;
+  }
+  .dockLeft { display: flex; flex-direction: column; gap: 6px; min-width: 0; max-width: 60%; }
+  .dockRight { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+  /* The round's settlement, on the table: large enough to read at a glance, small enough not to
+     compete with the thing it is reporting on. The numbers are named, because a bare pair of
+     numbers is a puzzle -- and the `?` is where the score stops being a puzzle. */
+  .settle {
+    position: relative; display: flex; align-items: baseline; gap: 6px; padding: 5px 12px;
+    border-radius: 9px; border: 1px solid var(--line); background: rgba(10, 13, 18, .86);
+    pointer-events: auto;
+  }
+  .settle b { font-size: 20px; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+  .settle b + span { font-size: 11px; color: var(--dim); margin-right: 4px; }
+  .badgeWrap { position: relative; width: fit-content; pointer-events: auto; }
+  .badge {
+    padding: 5px 11px; border-radius: 8px; font-size: 12.5px; margin: 0; width: fit-content;
+    white-space: nowrap; border: 1px solid var(--line); background: rgba(10, 13, 18, .84);
+    color: var(--dim);
+  }
+  .badge.ok { border-color: var(--ok); color: var(--ok); }
+  .badge.warn { border-color: var(--warn); color: var(--warn); }
+  .badge.maybe { border-color: var(--maybe); color: var(--maybe); }
+  .announce { font-size: 13px; color: var(--dim); margin: 0; min-height: 18px; }
+  .announce.ok { color: var(--ok); }
+  .announce.warn { color: var(--warn); }
+  /* The hand buttons and the two that keep the game moving. They live on the table because a
+     player who has to open a panel to deal is not playing a game, they are filling in a form. */
+  .btnRow { display: flex; gap: 6px; pointer-events: auto; flex-wrap: wrap; justify-content: flex-end; }
+  .btnRow button {
+    padding: 8px 11px; font-size: 13px; border-radius: 9px; background: rgba(10, 13, 18, .86);
+    border: 1px solid var(--line); color: var(--ink);
+  }
+  .btnRow button.helped { padding-right: 13px; }
+  /* The quick layout the table is still holding: pressing it again takes it back, and the button
+     has to say so -- an undo you cannot see coming is a trap. */
+  .btnRow button.on { border-color: var(--accent); color: var(--accent); }
+  #stageRestart { padding: 10px 14px; font-size: 14px; }
+  #stageDeal {
+    padding: 10px 18px; font-size: 15px; font-weight: 700; border-radius: 10px;
+    background: var(--accent); color: #071018; border: 1px solid var(--accent);
+  }
+  #stageDeal:disabled { opacity: .5; }
+  #renderNotice {
+    position: absolute; right: 56px; top: 10px; z-index: 3; font-size: 12px; color: var(--dim);
+    background: rgba(10, 13, 18, .8); border: 1px solid var(--line); border-radius: 999px;
+    padding: 3px 10px; margin: 0;
+  }
+  #helpOpen {
+    position: absolute; right: 10px; top: 8px; z-index: 3; width: 34px; height: 34px;
+    border-radius: 999px; font-size: 17px; font-weight: 700; line-height: 1;
+    background: rgba(10, 13, 18, .85); color: var(--ink); border: 1px solid var(--line);
+  }
+  #helpOpen:hover { border-color: var(--accent); }
+  /* The onboarding hint sits under the chart rather than in the middle: the puck starts at the
+     centre of the table, so a centred hint covers the one thing round one is about. */
+  #emptyBet {
+    position: absolute; left: 12px; top: 80px; z-index: 3; color: var(--ink);
+    background: rgba(10, 13, 18, .82); border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 12px; pointer-events: none; max-width: 46%; font-size: 13px; line-height: 1.45;
+  }
+  #emptyBet strong { display: block; margin-bottom: 4px; }
+  /* The hint itself is not a click target (taps belong to the felt); its link is. */
+  #emptyBetHelp { pointer-events: auto; }
+
+  /* The panel's edge, and the panel.
+     `--side-w` is set by the drag (`wireSplitter`); the fallback is one card wide, which is what
+     the column starts at even on a window with room for three. The grid's `auto-fit` is what makes
+     the cards follow the drag: the number of columns is decided by the panel's own width, so
+     widening it flows a second and then a third card in beside the first, live, and no viewport
+     media query has to guess what the panel is doing. */
+  #split {
+    flex: 0 0 12px; align-self: stretch; border-radius: 6px; cursor: col-resize;
+    touch-action: none; background: linear-gradient(var(--line), var(--line)) center / 2px 100% no-repeat;
+  }
+  #split:hover, #split.dragging, #split:focus-visible {
+    background-image: linear-gradient(var(--accent), var(--accent));
+    outline: none;
+  }
+  body[data-side="hidden"] #split { display: none; }
+  /* Folded away entirely: the table takes the window, which is what "immersion" means on a page
+     that is otherwise a control panel with a game attached. */
+  body[data-side="hidden"] .side { display: none; }
+  .side {
+    flex: 0 0 var(--side-w, clamp(300px, 25vw, 366px)); min-width: 0; overflow-y: auto;
+    padding-right: 6px; display: grid; gap: 8px; align-content: start;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+  .side .wide { grid-column: 1 / -1; }
+  details.panel, fieldset {
+    border: 1px solid var(--line); border-radius: 10px; margin: 0; padding: 6px 10px;
+    background: var(--panel);
+  }
+  details.panel > summary {
+    cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 8px;
+    padding: 2px 0;
+  }
+  details.panel > summary::-webkit-details-marker { display: none; }
+  details.panel > summary::before { content: '▸'; color: var(--dim); font-size: 11px; }
+  details.panel[open] > summary::before { content: '▾'; }
+  .legend { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  .digest {
+    color: var(--dim); font-size: 12px; margin-left: auto; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .group { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+           margin: 10px 0 4px; }
+  label { display: block; margin: 4px 0 1px; color: var(--dim); font-size: 13px; }
+  select, button, input[type=range] { font: inherit; color: var(--ink); background: #222a36;
+    border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; }
+  select { width: 100%; }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .42; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #071018; border-color: var(--accent); font-weight: 700; }
+  button.wide { width: 100%; margin-top: 8px; padding: 9px; font-size: 16px; }
+  button.tiny { padding: 3px 8px; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .row button { flex: 1 1 auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  td { padding: 1px 0; }
+  td.k { color: var(--dim); font-size: 13px; }
+  td.v { text-align: right; }
+  .big { font-size: 19px; font-weight: 600; }
+  .warn { color: var(--warn); }
+  .ok { color: var(--ok); }
+  .hint { color: var(--dim); font-size: 12.5px; margin: 4px 0 0; line-height: 1.45; }
+  code, pre { background: #1d2430; border-radius: 5px; font-size: 12px; }
+  code { padding: 1px 5px; }
+  pre { padding: 7px 9px; overflow-x: auto; margin: 4px 0 0; color: var(--ink); }
+  #preview { width: 100%; height: 74px; border-radius: 8px; border: 1px solid var(--line); display: block; }
+  .chartbox { position: relative; margin-top: 8px; }
+  #chart { width: 100%; height: 92px; display: block; }
+  #chartTip {
+    position: absolute; transform: translate(-50%, -130%); background: #0d1119; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 6px; padding: 3px 7px; font-size: 12px;
+    white-space: nowrap; pointer-events: none;
+  }
+  details { margin-top: 6px; }
+  details > summary { color: var(--dim); font-size: 13px; cursor: pointer; }
+  .map { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; color: var(--dim); }
+  .map b { color: var(--ink); font-weight: 600; }
+  #selfcheck { font-size: 12.5px; color: var(--dim); margin: 8px 0 0; }
+  #selfcheck.warn { color: var(--warn); }
+  #sumReason { font-size: 14px; font-weight: 600; margin: 2px 0 6px; }
+
+  /* The guide: an overlay that can be opened at any time, from anywhere on the table. On a phone
+     it becomes a bottom sheet, where a thumb can reach it. */
+  #guide {
+    position: fixed; inset: 0; z-index: 20; background: rgba(6, 8, 12, .72);
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  #guide[hidden] { display: none; }
+  #guide .sheet {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    max-width: 660px; width: 100%; max-height: 86dvh; overflow: auto; padding: 16px 18px;
+  }
+  #guide h2 { margin: 0 0 4px; font-size: 18px; }
+  #guide h3 { margin: 16px 0 4px; font-size: 13px; color: var(--dim); text-transform: uppercase;
+              letter-spacing: .06em; }
+  #guide table { margin-top: 4px; }
+  #guide td { vertical-align: top; padding: 2px 8px 2px 0; font-size: 13.5px; }
+  #guide td.g { color: var(--ink); white-space: nowrap; }
+  #guideClose { float: right; }
+  body.guide-open { overflow: hidden; }
+  @media (max-width: 820px) {
+    body { height: auto; min-height: 100dvh; overflow: auto; }
+    #bench { flex-direction: column; }
+    #stage { height: 66vh; flex: 0 0 auto; }
+    body[data-side="hidden"] #stage { height: 82vh; }
+    /* There is no edge to drag when the two are stacked, and no room for the group names. */
+    #split { display: none; }
+    .rowLabel { display: none; }
+    /* Stacked, the column is as wide as the window -- which would be room for two cards side by
+       side, and two cards side by side on a phone-width screen is two cards you cannot read. One
+       per row, however wide the frame happens to be. */
+    .side { flex: 1 1 auto; overflow: visible; padding-right: 0; grid-template-columns: 1fr; }
+    .dockLeft { max-width: 54%; }
+    .settle b { font-size: 17px; }
+    .btnRow button { padding: 7px 9px; font-size: 12px; }
+    .options { max-width: 60%; top: 46px; }
+    .opt { font-size: 11px; padding: 2px 7px; }
+    #emptyBet { max-width: 54%; font-size: 12px; }
+    #guide { align-items: flex-end; padding: 0; }
+    #guide .sheet { border-radius: 16px 16px 0 0; max-height: 88dvh; }
+  }
+  /* A phone held sideways is wide enough to trip the desktop rules but far too short for them. */
+  @media (max-height: 520px) and (max-width: 1180px) {
+    body { height: auto; overflow: auto; }
+    #bench { flex-direction: column; }
+    #stage { height: 76vh; flex: 0 0 auto; }
+    #split { display: none; }
+  }
+</style>
+</head>
+<body data-felt="green">
+
+<div class="top">
+  <h1>Place your bets</h1>
+  <p class="lead">
+    The puck moves; you bet on where it lands next. Stacks on the felt are your prediction — the
+    taller the stack, the more of your bet on that spot — and every stack within
+    <code>&epsilon;</code> of the ball pays its share.
+    <button class="link" id="help">How to play</button>
+  </p>
+  <div class="actions">
+    <button id="sideToggle" title="P">Hide panel</button>
+    <button id="fullscreen" title="F">Full screen</button>
+  </div>
+</div>
+
+<div id="bench">
+  <div id="stage" tabindex="0">
+    <canvas id="flat"></canvas>
+    <div class="chartWrap">
+      <canvas id="stageChart"></canvas>
+      <i class="q" data-help="Your running average score, round by round, against the dashed par line. The chart in Data is the same picture with the readings on it -- hover it for a round.">?</i>
+    </div>
+    <p id="renderNotice" hidden></p>
+    <div id="stackLabels"></div>
+    <div id="stackTools" hidden>
+      <button id="stackDown" aria-label="A shorter stack">&minus;</button>
+      <input type="range" id="stackWeight" aria-label="How tall this stack is">
+      <button id="stackUp" aria-label="A taller stack">+</button>
+      <span id="stackShare">0%</span>
+      <button id="stackMove" class="wide">Move</button>
+      <button id="stackRemove" class="wide">Remove</button>
+    </div>
+
+    <div class="options">
+      <div class="optRow"><span class="rowLabel">see</span>
+        <label class="opt"><input type="checkbox" id="aimAssist"><span>prediction</span><i class="q" data-help="Draws where this round's drift alone would put the puck, plus the drift's next few steps. It is an aid, not information you are entitled to: the drift is known either way, and hiding this changes no number -- only what you can see while you choose.">?</i></label>
+        <label class="opt"><input type="checkbox" id="showHistory"><span>last rounds</span><i class="q" data-help="The wake the puck has walked this run, with an arrowhead at each joint, plus a ghost of the ball at every place it has landed. With the prediction hidden, the cloud of past draws goes too -- it is drawn around the prediction, so there is nothing to draw it around.">?</i></label>
+      </div>
+      <div class="optRow"><span class="rowLabel">place</span>
+        <label class="opt"><input type="checkbox" id="snap"><span>snap to grid</span><i class="q" data-help="On: every stack lands on a payout square, so your squares tile the table and a landing is worth exactly one stack. Off: stacks land on a grid three times finer -- a third of a cell apart -- which is as close as two stacks can stand without touching.">?</i></label>
+      </div>
+      <div class="optRow"><span class="rowLabel">auto</span>
+        <label class="opt"><input type="checkbox" id="keepLayout"><span>keep my layout</span><i class="q" data-help="Carries this round's hand into the next one, re-anchored on the new prediction. Off, the hand is cleared between rounds -- watch it fade when you deal again.">?</i></label>
+        <label class="opt"><input type="checkbox" id="autoPlay"><span>auto-play</span><i class="q" data-help="Deals, settles and deals again on its own, reusing your last hand. It stops when the run does: a round that pays nothing ends the run.">?</i></label>
+      </div>
+    </div>
+
+    <div id="emptyBet"><strong>Place your stacks</strong>
+      Tap the felt where you think the puck will land. Drag the felt to turn the table, pinch to
+      zoom, and tap a stack to change its height.
+      <button class="link" id="emptyBetHelp">How to play</button>
+    </div>
+
+    <div class="dock">
+      <div class="dockLeft">
+        <div class="settle">
+          <b id="lastRoi">—</b><span>paid</span>
+          <b id="lastUtility">—</b><span>score</span>
+          <i class="q" data-help="What the round paid is the share of your bet that landed within ε. The score is its logarithm: 25% paid is log(0.25) = −1.3863. The score is the one that averages -- the running average of these is the rate a bet rolled over every round would grow at, and par is the best any hand could average.">?</i>
+        </div>
+        <div class="badgeWrap">
+          <p class="badge" id="badge"></p>
+          <i class="q" id="badgeHelp" data-help="">?</i>
+        </div>
+        <p class="announce" id="announcement"></p>
+      </div>
+      <div class="dockRight">
+        <div class="btnRow"><span class="rowLabel">hands</span>
+          <button id="coverTable" class="helped">Cover the table<i class="q" id="coverTableHelp" data-help="">?</i></button>
+          <button id="evenGrid" class="helped">Even grid<i class="q" data-help="A 4×4 spread across the noise, at a spacing that deliberately does not divide the payout box evenly. It is the baseline the experiment falls back to, so a hand laid out here is the one the script scores by default.">?</i></button>
+          <button id="sameAsLast" class="helped">Same as last round<i class="q" data-help="Puts last round's hand back, re-anchored on this round's prediction. The shape means the same thing every round, which is what makes a hand something you can score twice.">?</i></button>
+        </div>
+        <div class="btnRow"><span class="rowLabel">edit</span>
+          <button id="undo" class="helped">Undo<i class="q" data-help="Undoes your last change -- a drag counts once, not once per frame. Ctrl+Z or U does the same.">?</i></button>
+          <button id="clear" class="helped">Clear<i class="q" data-help="Takes every stack off the table. Ctrl+Z brings it back.">?</i></button>
+        </div>
+        <div class="btnRow"><span class="rowLabel">run</span>
+          <button id="stageRestart">Restart</button>
+          <button id="stageDeal" class="primary">Deal</button>
+        </div>
+      </div>
+    </div>
+    <button id="helpOpen" title="How to play" aria-label="How to play">?</button>
+  </div>
+
+  <div id="split" role="separator" aria-orientation="vertical" tabindex="0"
+       aria-label="Drag to resize the panel" title="Drag to resize the panel"></div>
+
+  <div class="side" id="side">
+    <details class="panel" id="panelTable" open>
+      <summary><span class="legend">Game settings</span><span class="digest" id="digestTable"></span></summary>
+      <label for="preset">Which table</label>
+      <select id="preset"></select>
+      <canvas id="preview" height="74"></canvas>
+      <p class="hint" id="tableBlurb"></p>
+      <p class="hint"><b id="tableTitle"></b> — <span id="tableMotion"></span></p>
+      <p class="hint" id="tableNoise"></p>
+      <details>
+        <summary>The math</summary>
+        <pre id="tableMatrix"></pre>
+        <p class="hint">
+          The drift, as a matrix: the puck's next position is this times its current one. Every
+          table here is linear, and the exporter asserts that before writing the game's data, so
+          nothing on this page is guessing where the puck goes.
+        </p>
+      </details>
+      <label for="surface">How it is drawn</label>
+      <select id="surface"></select>
+      <p class="hint">
+        The same game either way: the same draw, the same numbers, the same hand. The 3-D table has
+        the depth on; the flat table is the same thing without it, and needs no GPU.
+      </p>
+      <p class="group">This run</p>
+      <label for="roundsPerRun">One run lasts</label>
+      <select id="roundsPerRun"></select>
+      <label for="eps">Payout radius &epsilon;</label>
+      <select id="eps"></select>
+      <label for="run">Which saved run</label>
+      <select id="run"></select>
+      <p class="hint" id="digestRun"></p>
+      <p class="hint">
+        Each table ships a fixed set of runs of its own noise. A run is one of them: the puck's
+        wobble is already recorded, so Run 3 plays the same draws every time — your stacks are the
+        only thing that changes. The export records which run you played, which is what lets the
+        script score it, so the list is fixed on purpose.
+      </p>
+      <details id="explain">
+        <summary>What am I actually doing?</summary>
+        <p class="hint">
+          Three things on this screen are the three things the package is made of, and the page is
+          a second, visible implementation of the same rule.
+        </p>
+        <div class="map">
+          <b>the moving puck</b><span>a stochastic dynamical system with a known drift — the table you picked</span>
+          <b>your stacks</b><span>a probabilistic predictor: a pmf over where the puck will be, whose heights are its weights</span>
+          <b>the payout</b><span>the <code>epsilon</code>-logarithm score: <code>log</code> of the share of your bet that landed within <code>&epsilon;</code></span>
+        </div>
+        <p class="hint">
+          The table's own movement is <em>given</em> — that is the setting: the nominal model is
+          known, the noise is not. Only the percentages on the stacks matter: a weight on its own
+          is a free parameter, which is why the page never asks you to pick one.
+        </p>
+      </details>
+    </details>
+
+    <details class="panel" id="panelData">
+      <summary><span class="legend">Data</span><span class="digest" id="digestScore"></span></summary>
+      <p class="hint" id="rounds"></p>
+      <table>
+        <tr><td class="k">so far — average paid a round</td><td class="v" id="meanRoi">—</td></tr>
+        <tr><td class="k">so far — average score</td><td class="v" id="meanUtility">—</td></tr>
+        <tr><td class="k">par — the best any hand could average</td><td class="v" id="par">—</td></tr>
+        <tr><td class="k">gap to par</td><td class="v" id="gap">—</td></tr>
+        <tr><td class="k">growth a round &mdash; the rate that compounds</td><td class="v" id="compoundRoi">—</td></tr>
+      </table>
+      <p class="hint">
+        Two averages of the same rounds, and they answer different questions. The payout is what a
+        round gave back; the score is <code>log</code> of it, and the mean of <em>those</em> is a
+        rate — raise <code>e</code> to it and you have the growth a round, which is what a bet
+        rolled over every round would compound at. The average payout does not compound, which is
+        why the two numbers differ.
+      </p>
+      <div class="chartbox">
+        <canvas id="chart"></canvas>
+        <p id="chartTip" hidden></p>
+      </div>
+      <details>
+        <summary>This hand, stack by stack<span class="digest" id="digestMoves"></span></summary>
+        <table id="stackList"></table>
+        <p class="hint" id="stackSummary"></p>
+      </details>
+      <div id="summary" hidden>
+        <p id="sumReason"></p>
+        <table>
+          <tr><td class="k">average score a round</td><td class="v big" id="sumMean">—</td></tr>
+          <tr><td class="k">par for this table</td><td class="v" id="sumPar">—</td></tr>
+          <tr><td class="k">best round</td><td class="v" id="sumBest">—</td></tr>
+          <tr><td class="k">worst round</td><td class="v" id="sumWorst">—</td></tr>
+        </table>
+        <p class="group">What you played, and what it paid here</p>
+        <table id="sumHands"></table>
+        <div class="row" style="margin-top:8px">
+          <button id="sumExport" class="helped">Export this run<i class="q" data-help="Downloads this run's log as a JSON file -- every round's hand, the table, the payout radius and which saved run you played. Nothing leaves your machine; there is no server here.">?</i></button>
+          <button id="sumRestart" class="primary">Play again</button>
+        </div>
+      </div>
+    </details>
+
+    <details class="panel">
+      <summary><span class="legend">Take your bets with you</span><span class="digest" id="digestExport"></span></summary>
+      <div class="row">
+        <button id="copyRound" class="helped">Copy this round<i class="q" data-help="Puts the round you just played on your clipboard as JSON: the hand, the table, the payout radius, and the saved run it was played on. Paste it into a file and score it -- see Export for the command.">?</i></button>
+        <button id="exportRun" class="helped">Export this run<i class="q" data-help="Downloads the whole run as a JSON file: every round's hand, the table, the payout radius and the saved run. It does not carry the payouts -- the script settles every round again for itself, which is the point. Score it with python examples/understand_ppsds_by_pmf_betting/experiment/run.py --bets your_file.json.">?</i></button>
+      </div>
+      <p class="hint" id="exportStatus">
+        Nothing is saved anywhere — no server, no files, nothing kept between visits: <b>Copy this
+        round</b> puts one hand on your clipboard, <b>Export this run</b> downloads the whole run,
+        and either can be scored properly with
+        <code>python examples/understand_ppsds_by_pmf_betting/experiment/run.py --bets your_file.json</code>.
+      </p>
+    </details>
+
+    <p id="selfcheck" class="wide">running self-check&hellip;</p>
+  </div>
+</div>
+
+<div id="guide" hidden role="dialog" aria-modal="true" aria-labelledby="guideTitle">
+  <div class="sheet">
+    <button id="guideClose" class="tiny">Close</button>
+    <h2 id="guideTitle">How to play</h2>
+    <p class="hint">
+      You are betting on where the puck lands next. Stack the felt; the dealer's ball decides the
+      wobble; every stack within <code>&epsilon;</code> of the landing pays its share of your bet.
+    </p>
+
+    <h3>The gestures</h3>
+    <table>
+      <tr><td class="g">Tap the felt</td><td>put a stack there (it snaps to a grid)</td></tr>
+      <tr><td class="g">Tap a stack</td><td>select it — the bar that appears holds the height slider, &minus;/&plus;, Move and Remove. Tap it again to let go. A tap on a square another stack owns selects <em>that</em> stack, so a tap never drops one on top of another</td></tr>
+      <tr><td class="g">Drag a stack</td><td>move it</td></tr>
+      <tr><td class="g">Drag the felt</td><td>turn the table</td></tr>
+      <tr><td class="g">Scroll / pinch</td><td>zoom</td></tr>
+      <tr><td class="g">Long-press a stack</td><td>take it away (desktop: right-click, or Delete once selected)</td></tr>
+      <tr><td class="g">Ctrl/Cmd+Z</td><td>undo the last change — a drag is one change, not one per frame</td></tr>
+      <tr><td class="g">D</td><td>deal / next round &nbsp;·&nbsp; <b>P</b> hide the panel &nbsp;·&nbsp; <b>?</b> this guide</td></tr>
+      <tr><td class="g">Any <b>?</b> badge</td><td>a control with a <b>?</b> in its corner explains itself when you tap that — it is the text this guide would otherwise have to repeat. The switches are grouped by what they do: <b>see</b>, <b>place</b>, <b>auto</b></td></tr>
+    </table>
+
+    <h3>The three things you will do most</h3>
+    <p class="hint">
+      <b>Put a stack down</b> where you think the puck lands — its <code>&epsilon;</code> square is
+      where that share pays. <b>Set its height</b>: tap it and drag the slider. The tower grows and
+      every percentage on the table updates, because a share is a height over the total — and the
+      percentages are the whole of what you are choosing, since a weight's own size means nothing.
+      <b>Deal</b>, bottom right of the table: the ball lands, and the round tells you what it paid.
+    </p>
+
+    <h3>Playing it safe, and what par is</h3>
+    <p class="hint">
+      <b>Cover the table</b> lays equal stacks so their <code>&epsilon;</code> squares tile the whole
+      support: no landing can pay nothing, and the badge says what that guarantees. Where the noise
+      is not uniform, that hand is safe but no longer the best — aiming at the fat part pays more,
+      and risks a round that pays nothing at all. <b>Par</b> is the best average any hand could
+      reach here: a line to watch, not a target you can beat. One table keeps its landing law to
+      itself, so it has no par and no safety badge — read its landings and work it out.
+    </p>
+
+    <h3>How a run ends</h3>
+    <p class="hint">
+      A run is the number of rounds you chose. It ends when they run out, or the moment a round pays
+      nothing — that scores &minus;&infin;. Either way the page stops, totals the run, and auto-play
+      stops with it.
+    </p>
+  </div>
+</div>
+
+<div id="helpPop" hidden role="tooltip"></div>
+
+<script type="module">
+  import { boot } from './game.js';
+  boot().catch((error) => {
+    const line = document.getElementById('selfcheck');
+    line.textContent = `the page could not start: ${error}`;
+    line.className = 'warn';
+    console.error(error);
+  });
+</script>
+</body>
+</html>

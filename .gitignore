@@ -18,6 +18,11 @@ venv/
 *.npz
 *.pdf
 *.png
+# ...except the release assets that ship with this site. The exclusion above is aimed at the
+# regenerated plots and data under `examples/**`, which must never ship; these are committed on
+# purpose. Without the negation the export to this repository would copy them and `git add -A`
+# would not stage them -- a 404 with every gate green.
+!docs/assets/*.png
 
 # -- Build artifacts (python -m build / pip install -e .) --
 dist/

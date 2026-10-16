@@ -2,7 +2,7 @@
 
 **This is the multi-process / cached runner**, meant for large batch runs. If you want to
 see how to drive ppsds by hand -- one trajectory, one predictor, no CLI -- read
-``examples/scene2_simulated_ambiguity/quickstart.py`` instead.
+``examples/understand_drpp_on_simulated_ambiguity/quickstart.py`` instead.
 
 One model table (:mod:`models`) covers all seven models -- five linear plus two nonlinear.
 What differs between systems is carried by the **ambiguity-set subclass**
@@ -13,7 +13,7 @@ Usage
 -----
 ::
 
-    cd examples/scene2_simulated_ambiguity/batch_experiment
+    cd examples/understand_drpp_on_simulated_ambiguity/batch_experiment
 
     # randomly sampled SDS
     python run.py -n 8 -s 3 -p 100 -m final_round -c none -t 100
@@ -57,7 +57,7 @@ import models
 #: Episode length (truncation horizon).
 T = 50
 
-#: The scene root, i.e. ``examples/scene2_simulated_ambiguity/``. Output goes to
+#: The scene root, i.e. ``examples/understand_drpp_on_simulated_ambiguity/``. Output goes to
 #: ``<SCENE_ROOT>/data/gym/...`` -- see the module docstring.
 SCENE_ROOT = Path(__file__).resolve().parents[1]
 

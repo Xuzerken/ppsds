@@ -1,24 +1,28 @@
 # Examples
 
 Every example lives under
-[`examples/`](https://github.com/Xuzerken/ppsds/tree/main/examples), split into two scenes:
+[`examples/`](https://github.com/Xuzerken/ppsds/tree/main/examples), organised as **four stories**.
+Each story is a directory with its own `README.md`, and each prints the numbers it talks about:
 
-- **`scene1_own_environment/`**: predictors on a gymnasium environment you already have. This is
-  the main path: three examples of increasing realism.
-- **`scene2_simulated_ambiguity/`**: declare an ambiguity set by hand, generate a stochastic
-  dynamical system from it, and compare the predictors on it. A single-process teaching example,
-  plus a multi-process batch runner.
+| Story | What it demonstrates |
+|---|---|
+| [`understand_ppsds_by_pmf_betting`](understand_ppsds_by_pmf_betting/index.md) | A prediction you place by hand, scored against the ceiling — the game, then the same thing over thousands of trajectories |
+| [`apply_drpp_to_your_own_env`](https://github.com/Xuzerken/ppsds/tree/main/examples/apply_drpp_to_your_own_env) | Putting the predictor on a gymnasium environment you already have. The main path: three examples of increasing realism |
+| [`understand_drpp_on_simulated_ambiguity`](https://github.com/Xuzerken/ppsds/tree/main/examples/understand_drpp_on_simulated_ambiguity) | Declaring an ambiguity set by hand and generating a system from it: a single-process teaching example plus a multi-process batch runner |
+| [`understand_predictability`](https://github.com/Xuzerken/ppsds/tree/main/examples/understand_predictability) | The ceiling: the best any prediction could do on a known system, and the paper's figure |
+
+[The map](map.md) shows how the four connect, and which subpackage each one uses.
 
 The commands below are run from the repository root with `ppsds` installed editable
 (`pip install -e .`), and the output blocks are what the scripts actually print.
 
-## scene1_own_environment/quickstart.py
+## apply_drpp_to_your_own_env/quickstart.py
 
 ```bash
-python examples/scene1_own_environment/quickstart.py
+python examples/apply_drpp_to_your_own_env/quickstart.py
 ```
 
-[The file](https://github.com/Xuzerken/ppsds/blob/main/examples/scene1_own_environment/quickstart.py)
+[The file](https://github.com/Xuzerken/ppsds/blob/main/examples/apply_drpp_to_your_own_env/quickstart.py)
 stands up a two-state linear system as a stand-in for "your own environment", declares a nominal
 model and a conic-moment ambiguity set, and scores `NominalPredictor` and `EigDrpp` over 50 steps
 of zero control. About one second.
@@ -38,10 +42,10 @@ rollout that conservatism is a cost with nothing yet to collect. The example's r
 the workflow: the environment is stepped but never modified, and both predictors take their model
 from the same ambiguity set, so they differ only in whether they account for the ambiguity.
 
-## scene1_own_environment/with_standard_gym_env.py
+## apply_drpp_to_your_own_env/with_standard_gym_env.py
 
 ```bash
-python examples/scene1_own_environment/with_standard_gym_env.py
+python examples/apply_drpp_to_your_own_env/with_standard_gym_env.py
 ```
 
 About 15 seconds. This one puts DRPP on **Acrobot-v1**: 6-dimensional, underactuated, chaotic,
@@ -83,10 +87,10 @@ episodes the estimate is calibrated and nominal wins, while one episode underest
 3.9x, the nominal prediction is too narrow, and DRPP wins. **Too little identification data is the
 most common source of optimism**, and optimism, not model error, is what DRPP is paid for.
 
-## scene1_own_environment/pendulum_singular_covariance.py
+## apply_drpp_to_your_own_env/pendulum_singular_covariance.py
 
 ```bash
-python examples/scene1_own_environment/pendulum_singular_covariance.py
+python examples/apply_drpp_to_your_own_env/pendulum_singular_covariance.py
 ```
 
 About 4 seconds. A second pitfall on the same path, on **Pendulum-v1**: the residual covariance
@@ -122,10 +126,10 @@ much uncertainty am I willing to admit here", and should come from physics or fr
 you scrutinize, not from a number invented to make the code run. Throughout, Eig-DRPP sits below
 nominal, because here the true system is close to the nominal model and robustness is pure cost.
 
-## scene2_simulated_ambiguity/quickstart.py
+## understand_drpp_on_simulated_ambiguity/quickstart.py
 
 ```bash
-python examples/scene2_simulated_ambiguity/quickstart.py
+python examples/understand_drpp_on_simulated_ambiguity/quickstart.py
 ```
 
 A few seconds, single process, **core API only**: no cache, no command line, no model table. It
@@ -155,7 +159,7 @@ gap is the guarantee, measured: average performance given up under `random`, wor
 collected under `worst`. `Noise-DRPP` sits in between, which is what "robust to noise only"
 buys.
 
-## scene2_simulated_ambiguity/batch_experiment/run.py
+## understand_drpp_on_simulated_ambiguity/batch_experiment/run.py
 
 The teaching example above is deliberately small. Reproducing the paper's sweeps needs more:
 seven models, a validated cache, and multiple processes. That is what `run.py` is, and it is
@@ -163,7 +167,7 @@ honest about being a **batch runner** rather than a tutorial: a model table in `
 cache with a shape contract, and a `fork` requirement.
 
 ```bash
-cd examples/scene2_simulated_ambiguity/batch_experiment
+cd examples/understand_drpp_on_simulated_ambiguity/batch_experiment
 
 # linear model, randomly-sampled SDS
 python run.py -n 8 -s 3 -p 100 -m final_round -c none -t 100
@@ -224,7 +228,7 @@ and the figures for `random` runs.
 
 ### Where the output goes
 
-Results always land in `examples/scene2_simulated_ambiguity/data/gym/...`, the **scene root**,
+Results always land in `examples/understand_drpp_on_simulated_ambiguity/data/gym/...`, the **scene root**,
 not under `batch_experiment/`. The runner resolves that root from its own file location rather
 than the working directory, so both entry points share one result tree and a run can be launched
 from anywhere. The pickles and the figures (`error_bar.pdf`, plus an ellipse figure for the
@@ -245,3 +249,12 @@ linear models) are written there.
 
 For convenience, `run.sh` (Linux/WSL) and `run.ps1` (Windows) drive `run.py` through six
 experiments in sequence under one model table.
+
+## Where to go next
+
+- **How the four stories connect**: [the map](map.md) — the routes through this material and which
+  subpackage each one uses
+- **The one with a game in front of it**: [play it](understand_ppsds_by_pmf_betting/index.md), then
+  [measure it properly](understand_ppsds_by_pmf_betting/experiment.md)
+- **Put a predictor on a system of your own**: [Getting Started](getting-started.md)
+- **Add a family of your own**: [the Developer Guide](extending.md)

@@ -52,4 +52,4 @@ jobs:
         run: pytest -m "not packaging" -q
 
       - name: A core-only workflow actually runs
-        run: python examples/scene1_own_environment/quickstart.py
+        run: python examples/apply_drpp_to_your_own_env/quickstart.py

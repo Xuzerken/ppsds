@@ -330,7 +330,7 @@ implementation detail:
 
 Getting this order wrong is not a crash; it is a plausible number computed from the wrong pairing.
 The teaching example in
-[`examples/scene2_simulated_ambiguity/quickstart.py`](https://github.com/Xuzerken/ppsds/blob/main/examples/scene2_simulated_ambiguity/quickstart.py)
+[`examples/understand_drpp_on_simulated_ambiguity/quickstart.py`](https://github.com/Xuzerken/ppsds/blob/main/examples/understand_drpp_on_simulated_ambiguity/quickstart.py)
 is exactly this loop, ~40 lines, single process, core API only. Copy its shape:
 
 ```python
@@ -368,10 +368,10 @@ Two routes. Pick by whether you need a *measurement* or a *check*:
 | shape | one process, a loop, print or plot | model table, worker processes, validated cache |
 | good for | checking the machinery, a quick sweep | a sweep you will re-run, and figures for a paper |
 | cost | you write the loop | you fill in a model table and respect its cache contract |
-| start from | [scene 2 quickstart](https://github.com/Xuzerken/ppsds/blob/main/examples/scene2_simulated_ambiguity/quickstart.py) | [`batch_experiment/`](https://github.com/Xuzerken/ppsds/blob/main/examples/scene2_simulated_ambiguity/batch_experiment/) |
+| start from | [scene 2 quickstart](https://github.com/Xuzerken/ppsds/blob/main/examples/understand_drpp_on_simulated_ambiguity/quickstart.py) | [`batch_experiment/`](https://github.com/Xuzerken/ppsds/blob/main/examples/understand_drpp_on_simulated_ambiguity/batch_experiment/) |
 
 Route B's command line, output tree, caching and its `fork` requirement are documented once, in
-[Examples](examples.md#scene2_simulated_ambiguitybatch_experimentrunpy): read it there rather than
+[Examples](examples.md#understand_drpp_on_simulated_ambiguitybatch_experimentrunpy): read it there rather than
 here. What belongs *here* is the part that is about your family rather than about the runner:
 
 - **The model table must declare everything that determines a number.** Each model entry carries a
@@ -433,8 +433,8 @@ pip install -e ".[dev,experiments]"
 python -c "import ppsds; print(ppsds.__version__)"
 
 # 3. Run the two teaching examples: ~1 second, then a few seconds
-python examples/scene1_own_environment/quickstart.py
-python examples/scene2_simulated_ambiguity/quickstart.py
+python examples/apply_drpp_to_your_own_env/quickstart.py
+python examples/understand_drpp_on_simulated_ambiguity/quickstart.py
 
 # 4. Prove the toolchain is green BEFORE you change anything
 pytest -m "not slow and not packaging"

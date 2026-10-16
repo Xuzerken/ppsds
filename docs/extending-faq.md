@@ -428,3 +428,10 @@ the [Extending](extending.md) guide is for. Two smaller edges of the same kind: 
 with no callers and are therefore unexercised by the suite, and one assertion in the golden fixture
 pins the discrete worst-direction index, which makes it the most likely test to go red on a
 different numerical stack.
+
+## Where to go next
+
+- **Do the work this page is troubleshooting**: [the Developer Guide](extending.md)
+- **Understand what you are extending**: [Concepts](concepts.md), especially the honest limits
+- **See a finished one**: [Examples](examples.md) — each story prints the numbers it talks about
+- **Check which part you are touching**: [the map](map.md)

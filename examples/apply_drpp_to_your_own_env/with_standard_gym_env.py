@@ -2,7 +2,7 @@
 
 Run::
 
-    python examples/scene1_own_environment/with_standard_gym_env.py      # about 10 seconds
+    python examples/apply_drpp_to_your_own_env/with_standard_gym_env.py      # about 10 seconds
 
 The setting: you are using an off-the-shelf gym environment and have already fixed a control
 policy, and now you want to add **probabilistic prediction with a lower-bound guarantee** to it.
@@ -180,4 +180,4 @@ if __name__ == '__main__':
     print()
     print('  Companion piece (a different pitfall that will stop you cold: a **structurally')
     print('  singular** residual covariance, and "regularization is modeling"):')
-    print('      python examples/scene1_own_environment/pendulum_singular_covariance.py')
+    print('      python examples/apply_drpp_to_your_own_env/pendulum_singular_covariance.py')

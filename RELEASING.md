@@ -25,8 +25,8 @@ spent before the release is meant to be public.
 
 ```bash
 # in the public clone, on main, with __version__ already at the beta number
-git tag -a v0.0.1 -m "ppsds 0.0.1 (private beta)"
-git push origin v0.0.1
+git tag -a v0.0.2 -m "ppsds 0.0.2 (private beta)"
+git push origin v0.0.2
 ```
 
 The `publish` workflow runs, builds the sdist and the wheel, and then **deliberately does not
@@ -38,7 +38,7 @@ and attach both files to a GitHub Release cut from the tag. Then hand out the re
 repository URL: whoever receives it installs with
 
 ```bash
-pip install ./ppsds-0.0.1-py3-none-any.whl
+pip install ./ppsds-0.0.2-py3-none-any.whl
 ```
 
 **Invite collaborators to the release, not to the development.** The repository they can see is

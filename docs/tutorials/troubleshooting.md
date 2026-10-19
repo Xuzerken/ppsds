@@ -399,7 +399,7 @@ whether a run completed.
 
 ## Known rough edges in this release
 
-Honest limits, as of `0.0.1`, so you do not spend an afternoon rediscovering them.
+Honest limits, as of `0.0.2`, so you do not spend an afternoon rediscovering them.
 
 ### The full-trajectory prediction helper is deprecated, and its replacement is incomplete
 
@@ -424,10 +424,9 @@ uncertainty in `A` and `B`, and it cannot express it.
 
 **Fix**: [Preliminaries](../research/preliminaries.md#honest-limits) states this limit precisely; read it before concluding
 that the shipped family is a general-purpose conic-moment implementation. Extending it is exactly what
-the [A new family and its DRPP](developer-guide.md) guide is for. Two smaller edges of the same kind: a few modules ship
-with no callers and are therefore unexercised by the suite, and one assertion in the golden fixture
-pins the discrete worst-direction index, which makes it the most likely test to go red on a
-different numerical stack.
+the [A new family and its DRPP](developer-guide.md) guide is for. A smaller edge of the same kind:
+one assertion in the golden fixture pins the discrete worst-direction index, which makes it the
+most likely test to go red on a different numerical stack.
 
 ## Next
 

@@ -2,7 +2,7 @@
 
 > **How well could anything predict this system? The ceiling, and the figure from the paper.**
 
-Everything else in this repository is about building a predictor. This story is about the number
+Everything else in this repository is about building a predictor. This example is about the number
 such a predictor is trying to reach — and it needs **no predictor at all**. Given only the system,
 the epsilon-logarithm score has a best possible expected value, and that value is the ceiling.
 
@@ -14,7 +14,7 @@ the epsilon-logarithm score has a best possible expected value, and that value i
 
 ---
 
-## Act 1 — Six numbers you can check by hand
+## Six numbers you can check by hand
 
 ```bash
 python examples/understand_predictability/quickstart.py      # about 2 seconds
@@ -33,12 +33,12 @@ true law, the cross-entropy against a reference predictor, and then a table:
 It ends with a "how to read this" section, including the one discontinuity worth knowing: the
 `epsilon = 0` case is a different formula and does not sit on the same curve.
 
-## Act 2 — The paper's figure, at the paper's scale
+## The paper's figure, at the paper's scale
 
 ```bash
-python examples/understand_predictability/batch_experiment/run.py                  # 100,000 trajectories
-python examples/understand_predictability/batch_experiment/run.py --n_traj 2000    # quick look
-python examples/understand_predictability/batch_experiment/run.py --save-figure    # write the PDF
+python experiments/predictability/run.py                  # 100,000 trajectories
+python experiments/predictability/run.py --n_traj 2000    # quick look
+python experiments/predictability/run.py --save-figure    # write the PDF
 ```
 
 Same system and same predictor, at the resolution the paper uses, plus the three-panel figure. It
@@ -55,13 +55,13 @@ The runtime is worth noticing in itself: the whole point of this side of the pac
 
 - **The other side of the same coin**: `../understand_drpp_on_simulated_ambiguity/` — the floor,
   which is what you get when the system is *not* known exactly
-- **Make sure you have the two bound-pairs straight**: [Concepts](https://xuzerken.github.io/ppsds/concepts/)
+- **Make sure you have the two bound-pairs straight**: [Research](https://xuzerken.github.io/ppsds/research/)
   § *Two bounds one level up, and they are not these two*
-- **Score your own predictor against the ceiling**: [Predictability](https://xuzerken.github.io/ppsds/predictability/)
+- **Score your own predictor against the ceiling**: [the predictability paper](https://xuzerken.github.io/ppsds/research/probabilistic-predictability/)
 - **The same idea as a game**: `../understand_ppsds_by_pmf_betting/` — you place the bet, and the
   ceiling is the number no bettor can beat
 
-## What this story uses
+## What this example uses
 
 | Subpackage | For |
 |---|---|
@@ -69,4 +69,4 @@ The runtime is worth noticing in itself: the whole point of this side of the pac
 | `ppsds.numerics.random_variables` | the noise law (`multivariate_uniform`) |
 | `ppsds.predictability` | the ceiling, the approximation, entropy, and trajectory aggregation |
 | `ppsds.scoring_rule` | `EpsilonLogarithmScore` |
-| `ppsds.visualization` | the three-panel figure (Act 2) |
+| `ppsds.visualization` | the three-panel figure (the batch runner) |

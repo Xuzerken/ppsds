@@ -40,9 +40,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 #: The page, in whichever layout this tree uses -- see :mod:`_paths`.
 GAME = ((public_root() or REPO_ROOT / 'public') / 'docs'
-        / 'understand_ppsds_by_pmf_betting' / 'game')
+        / 'examples' / 'understand_ppsds_by_pmf_betting' / 'game')
 ASSETS = GAME / 'assets'
-EXAMPLE_DIR = REPO_ROOT / 'examples' / 'understand_ppsds_by_pmf_betting' / 'experiment'
+EXAMPLE_DIR = REPO_ROOT / 'experiments' / 'pmf_betting'
 
 # The page and the script are two halves of one funnel, so the test that runs the page has to be
 # able to run the script's own reading and replaying of what the page wrote out.
@@ -604,6 +604,25 @@ result.landings = {
   newest: world.landingFade(4, 5),
   middle: world.landingFade(2, 5),
   oldest: world.landingFade(0, 5),
+};
+
+// 22. The frame makes room for the trail the same way it makes room for a tower -- by widening,
+//     not by moving. The puck never moves on its own, so the landings behind it are the only place
+//     the system's motion is visible; but the frame still cannot follow them indefinitely, or a run
+//     that wanders would walk the puck itself off the screen.
+const noTrail = world.frameBox([0, 0], [0, 0], [], 0.5, 0, []);
+const someTrail = world.frameBox([0, 0], [0, 0], [], 0.5, 0, [[3, 0]]);
+const farTrail = world.frameBox([0, 0], [0, 0], [], 0.5, 0, [[500, 500]]);
+result.trailFrame = {
+  floor: noTrail.span,
+  emptyIsUnchanged: noTrail.span === world.frameBox([0, 0], [0, 0], [], 0.5, 0).span
+    && noTrail.centre[0] === 0 && noTrail.centre[1] === 0,
+  grew: someTrail.span > noTrail.span,
+  centredOnTheHand: someTrail.centre[0] === 0 && someTrail.centre[1] === 0,
+  holds: Math.abs(3 - someTrail.centre[0]) <= someTrail.span,
+  capped: farTrail.span <= 2 * noTrail.span + 1e-9,
+  stillCentred: farTrail.centre[0] === 0 && farTrail.centre[1] === 0,
+  puckStillFramed: Math.abs(0 - farTrail.centre[0]) <= farTrail.span,
 };
 
 console.log('RESULT ' + JSON.stringify(result));
@@ -1313,6 +1332,22 @@ def test_the_view_frames_the_hand_without_creeping(node_run):
     assert frame['radiusShared'] is True, 'the discs and the lattice must measure the same epsilon'
     assert frame['covers'] is True, 'the frame does not hold every stack'
     assert frame['neverFurtherThanDouble'] is True, 'the view is zooming out with the hand'
+
+
+def test_the_view_makes_room_for_the_trail(node_run):
+    """The one place the system's own motion is visible is the landings behind the puck, so they
+    have to stay in the frame -- without the frame following them away from the puck."""
+    trail = node_run['trailFrame']
+    assert trail['emptyIsUnchanged'] is True, (
+        'a run with no rounds behind it must frame exactly as it did before the trail was a '
+        'consideration at all')
+    assert trail['grew'] is True, 'a landing off to one side did not widen the frame'
+    assert trail['centredOnTheHand'] is True, 'the trail moved the frame instead of widening it'
+    assert trail['holds'] is True, 'the frame does not hold a nearby landing'
+    assert trail['capped'] is True, (
+        'a distant landing ratcheted the frame past the same ceiling a stack is held to')
+    assert trail['stillCentred'] is True and trail['puckStillFramed'] is True, (
+        'a trail longer than the frame can show dragged the camera off the puck')
 
 
 def test_a_new_round_has_three_beats(node_run):

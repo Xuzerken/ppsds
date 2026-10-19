@@ -28,17 +28,6 @@ def repo_root():
     return REPO_ROOT
 
 
-@pytest.fixture(scope='session')
-def examples_dir():
-    """``examples/`` next to the package source.
-
-    Also present in an unpacked sdist. If it is missing, the caller should skip rather than fail:
-    the example smoke tests are the one place where "the environment is not a checkout" is a
-    legitimate reason to do nothing.
-    """
-    return REPO_ROOT / 'examples'
-
-
 @pytest.fixture
 def linear_set():
     """A fresh linear ambiguity set (never shared: the sets keep references to their arrays)."""

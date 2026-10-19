@@ -41,13 +41,14 @@ import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-#: The scene-2 story directory, **newest name first**. It was renamed on 2026-10-16
-#: (``scene2_simulated_ambiguity`` -> ``understand_drpp_on_simulated_ambiguity``), and ``--base``
-#: checks out a tree that predates the rename -- so the directory is *probed* in each tree rather
-#: than assumed, for the same reason ``RUNNER_SCRIPTS`` is. Getting this wrong does not fail
-#: loudly: the baseline tree would simply report no pkl, and that surfaces as "file sets differ"
-#: rather than as a comparison of numbers.
+#: The scene-2 directory, **newest layout first**. The batch runner moved out of `examples/`
+#: into `experiments/drpp/` on 2026-10-18, and `--base` checks out a tree that predates the move,
+#: so the directory is *probed* in each tree rather than assumed, for the same reason
+#: ``RUNNER_SCRIPTS`` is. Getting this wrong does not fail loudly: the baseline tree would
+#: simply report no pkl, and that surfaces as "file sets differ" rather than as a comparison of
+#: numbers.
 SCENE2_CANDIDATES = (
+    os.path.join('experiments', 'drpp'),
     os.path.join('examples', 'understand_drpp_on_simulated_ambiguity'),
     os.path.join('examples', 'scene2_simulated_ambiguity'),
 )
@@ -59,10 +60,12 @@ SCENE2_CANDIDATES = (
 #: what a change is allowed to affect, so it should be stated at the call site.
 #: The usage in ``CONTRIBUTING.md`` is ``--base <the commit you branched from>``.
 
-#: Where the batch runner may live **inside the scene-2 directory**, newest layout first. The
-#: runner moved from ``exp_gym.py`` to ``batch_experiment/run.py``, and a baseline ref predates
-#: that, so each tree is probed rather than assumed.
+#: Where the batch runner may live **inside the scene directory**, newest layout first. The
+#: runner moved from ``exp_gym.py`` to ``batch_experiment/run.py``, and then to ``run.py``
+#: directly in ``experiments/drpp/``; a baseline ref may predate either move, so each tree is
+#: probed rather than assumed.
 RUNNER_SCRIPTS = (
+    ('', 'run.py'),
     ('batch_experiment', 'run.py'),
     ('', 'exp_gym.py'),
 )

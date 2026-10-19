@@ -3,7 +3,7 @@
 > **Put the predictor on your own system — and find out when it pays for itself and when it charges you.**
 
 You already have something you can `step()`: a simulator, or a gymnasium environment you wrote. This
-story is about adding probabilistic prediction to it, and about the two ways it goes wrong.
+example is about adding probabilistic prediction to it, and about the two ways it goes wrong.
 
 | | |
 |---|---|
@@ -13,7 +13,7 @@ story is about adding probabilistic prediction to it, and about the two ways it 
 
 ---
 
-## Act 1 — Four steps, and the order matters
+## Four steps, and the order matters
 
 ```bash
 python examples/apply_drpp_to_your_own_env/quickstart.py      # about 1 second
@@ -35,7 +35,7 @@ Eig-DRPP              -3.366   made robust to the worst case
 failure. DRPP optimizes the worst case, so on one ordinary rollout its conservatism is a cost with
 nothing yet collected. Its return arrives in the second act.
 
-## Act 2 — "My model is bad" is not by itself a reason DRPP wins
+## "My model is bad" is not by itself a reason DRPP wins
 
 ```bash
 python examples/apply_drpp_to_your_own_env/with_standard_gym_env.py      # about 10 seconds
@@ -43,7 +43,7 @@ python examples/apply_drpp_to_your_own_env/with_standard_gym_env.py      # about
 
 `Acrobot-v1` is six-dimensional, underactuated and chaotic, and nobody wrote it for this package —
 so the nominal model and the ambiguity set have to be **identified from data**. The script prints
-how bad the fit actually is (a residual of about 74%), then answers the question Act 1 left open:
+how bad the fit actually is (a residual of about 74%), then answers the question the first script left open:
 does DRPP win now?
 
 **It does not.** That is the point of the act: *"the model is bad" is by itself not enough to make
@@ -51,7 +51,7 @@ DRPP win.* What decides it is whether the ambiguity set you declared **contains*
 Declare optimistically and DRPP helps you; declare conservatively and it charges you a premium.
 The script's last section runs that comparison over two regimes of identification data.
 
-## Act 3 — The covariance you computed may be unusable
+## The covariance you computed may be unusable
 
 ```bash
 python examples/apply_drpp_to_your_own_env/pendulum_singular_covariance.py      # about 5 seconds
@@ -76,7 +76,7 @@ not by prediction quality.
 - **Add a family of your own**: [Extending ppsds](https://xuzerken.github.io/ppsds/extending/)
 - **The pitfalls in full**: [Troubleshooting](https://xuzerken.github.io/ppsds/extending-faq/)
 
-## What this story uses
+## What this example uses
 
 | Subpackage | For |
 |---|---|

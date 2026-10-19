@@ -33,10 +33,14 @@ pytestmark = pytest.mark.skipif(
     reason='this tree has no published content (for instance an unpacked sdist)',
 )
 
-#: The three answers to "where do you want to start?". Prose may change; these are the reader
-#: types the front page is organised around, and dropping one silently would leave a reader with
-#: nowhere to go.
-BRANCH_LABELS = ('just play with it', 'put it on a system of mine', 'check it against the papers')
+#: The reader types the front page is organised around. Prose may change; dropping one silently
+#: would leave a reader with nowhere to go. The four sections (Examples / Experiments / Research /
+#: Tutorials) are reached through these rows.
+BRANCH_LABELS = ('just curious', 'build the system yourself', 'you have a target system',
+                 'only data', 'reproduce a paper', 'use it on your system', 'add a family',
+                 'add a predictor kind', 'do research on the floor', 'work on the ceiling',
+                 'found a problem while playing', 'contribute what you built',
+                 'discuss a research collaboration')
 
 #: How far into the README the first installable command has to appear. Not a style preference:
 #: a reader who has not seen a command by here has no evidence the thing exists.
@@ -138,6 +142,23 @@ def test_every_figure_the_front_doors_reference_exists():
             assert (ASSETS / name).is_file(), f'{path.name} references {name}, which does not exist'
 
 
+def assets_mkdocs_loads() -> set[str]:
+    """The ``docs/assets/`` files ``mkdocs.yml`` pulls in through ``extra_css``/``extra_javascript``.
+
+    Read as text rather than parsed: the only thing wanted is which asset filenames appear, and a
+    YAML dependency for that would be a dependency added to the test environment for nothing.
+    """
+    config = (PUBLIC / 'mkdocs.yml').read_text(encoding='utf-8')
+    return set(re.findall(r'assets/([A-Za-z0-9_.-]+\.(?:css|js))', config))
+
+
+#: A stylesheet is pulled in by `mkdocs.yml`, not by a link in the prose, so "no page references
+#: it" is not a fault for these -- but "nothing loads it" is, and that is what the test below
+#: checks instead. The old version of this test hardcoded `sidebars.`, which meant the next file
+#: added to `extra_css` would have failed as an orphan until someone edited the test.
+LOADED_BY_CONFIG = assets_mkdocs_loads()
+
+
 def test_no_figure_is_orphaned():
     """The other direction: an asset nothing points at is dead weight in the published site."""
     if not ASSETS.is_dir():
@@ -146,10 +167,32 @@ def test_no_figure_is_orphaned():
     for path in [README, SITE_HOME, *(PUBLIC / 'docs').rglob('*.md')]:
         referenced |= referenced_assets(text_of(path))
     for asset in sorted(ASSETS.iterdir()):
-        if not asset.is_file() or asset.name.startswith('sidebars.'):
-            continue        # sidebars.{css,js} are loaded by mkdocs.yml, not referenced by prose
+        if not asset.is_file() or asset.name in LOADED_BY_CONFIG:
+            continue
         assert asset.name in referenced, (
-            f'{asset.name} is committed but no page references it; either use it or remove it')
+            f'{asset.name} is committed but nothing uses it -- neither a page nor mkdocs.yml; '
+            f'either use it or remove it')
+
+
+def test_the_front_page_cards_stylesheet_still_matches_its_heading():
+    """``cards.css`` selects the card table by the heading's id, which nothing else enforces.
+
+    The rules that give the front page's three pictures equal columns are anchored on
+    ``#where-do-you-want-to-start``, the slug MkDocs derives from the heading. Rename the heading
+    and the stylesheet goes on existing, goes on being loaded, and silently stops applying -- the
+    pictures simply go back to three different widths, which is the bug it was written for. The
+    slug is derived here the same way MkDocs derives it, so the failure names the new id.
+    """
+    heading = next((line for line in text_of(SITE_HOME).splitlines()
+                    if line.startswith('## ') and 'start' in line.lower()), None)
+    assert heading, 'the front page no longer has a "where do you want to start" heading'
+    slug = re.sub(r'[^a-z0-9 -]', '', heading[3:].strip().lower()).replace(' ', '-')
+
+    stylesheet = (ASSETS / 'cards.css').read_text(encoding='utf-8')
+    assert f'#{slug}' in stylesheet, (
+        f'the heading now slugs to "{slug}" but cards.css still selects '
+        f'{re.findall(r"#[a-z0-9-]+", stylesheet)}; update the selector or the heading')
+    assert 'cards.css' in LOADED_BY_CONFIG, 'cards.css is not loaded by mkdocs.yml any more'
 
 
 # ----------------------------------------------------------------------
@@ -165,10 +208,24 @@ def nav_pages() -> list[Path]:
 
 def test_every_navigable_page_says_where_to_go_next():
     """The sidebar is a map; a page that ends without a next step drops the reader."""
-    missing = [p.name for p in nav_pages() if '## Where to go next' not in text_of(p)]
+    missing = [p.name for p in nav_pages() if '## Next' not in text_of(p)]
     assert not missing, f'pages with no "Where to go next" section: {missing}'
 
 
 def test_the_map_page_is_reachable_from_the_navigation():
     """It is the one page whose whole job is to be found when the shelf order does not fit."""
     assert any(p.name == 'map.md' for p in nav_pages()), 'map.md is not in the navigation'
+
+
+def test_every_page_in_the_tree_is_in_the_navigation():
+    """A page no nav entry points at is built but unreachable.
+
+    The migration to the four-section tree moves files; without this, a page could be moved and
+    left out of the nav, and the site would build green with a hole in it.
+    """
+    docs = PUBLIC / 'docs'
+    pages = {p.relative_to(docs).as_posix() for p in docs.rglob('*.md')}
+    nav = {p.relative_to(docs).as_posix() for p in nav_pages()}
+    assert pages == nav, (
+        f'pages missing from the nav: {sorted(pages - nav)}; '
+        f'nav entries with no page: {sorted(nav - pages)}')

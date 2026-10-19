@@ -27,7 +27,7 @@ The runtime is dominated by Eig-DRPP, which solves a cone program at every step.
 
 This script deliberately uses **only the core ppsds surface** -- no ``ppsds.experiment``, no
 cache, no command line. For the multi-process batch runner see
-``examples/understand_drpp_on_simulated_ambiguity/batch_experiment/run.py``.
+``experiments/drpp/run.py``.
 """
 
 import numpy as np

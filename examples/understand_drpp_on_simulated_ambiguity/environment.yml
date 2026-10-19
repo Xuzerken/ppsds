@@ -1,0 +1,24 @@
+# Conda environment for this example only. Create it from this directory:
+#
+#   conda env create -f environment.yml
+#   conda activate ppsds-ambiguity
+#   python -m pip install -e ../..
+#
+# `pip install -e ".[experiments]"` builds an equivalent environment without conda.
+# Activation is case-sensitive on Linux/WSL, and the conda directory itself must live on a
+# case-sensitive filesystem: package archives contain paths differing only in case, so
+# `conda env create` aborts with a spurious "CondaVerificationError ... corrupted" otherwise.
+name: ppsds-ambiguity
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python =3.12
+  - numpy =2.3
+  - scipy =1.16
+  - matplotlib =3.10
+  - gymnasium >=1.0
+  - pip
+  - pip:
+      - cvxpy ==1.7.4

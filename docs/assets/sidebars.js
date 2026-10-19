@@ -1,6 +1,6 @@
 /**
- * A small chevron at the top of each of the two columns: one folds the navigation, one folds the
- * table of contents.
+ * A small menu button at the top of each of the two columns: one folds the navigation, one folds
+ * the table of contents.
  *
  * Material ships neither. Its sidebar is a drawer below 76.25em and a fixed column above it, and
  * there is no control for the column -- the community answer is a plugin, which for this project
@@ -20,9 +20,9 @@
   'use strict';
 
   var STORE = 'ppsds-folded-columns';
-  // Material Design's "chevron left". The secondary column's button is the same chevron turned
-  // round, so that both point at the edge they fold towards (see the stylesheet).
-  var CHEVRON = 'M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z';
+  // A three-bar menu icon. The columns fold towards different edges, but the icon does not need
+  // to point: it is a control for the column, not an arrow.
+  var MENU = 'M4 6h16v2H4zM4 11h16v2H4zM4 16h16v2H4z';
   var COLUMNS = {
     nav: { sidebar: '.md-sidebar--primary', body: 'ppsds-nav-folded', what: 'navigation column' },
     toc: { sidebar: '.md-sidebar--secondary', body: 'ppsds-toc-folded', what: 'table of contents' },
@@ -64,14 +64,43 @@
     });
   }
 
+  // A chevron on every table-of-contents entry that has children. Material's TOC is nested in
+  // the DOM but has no control for collapsing a branch; this adds one without touching the
+  // theme. The collapsed state is per page, not remembered: it follows the section you are
+  // reading, not your habits.
+  var CHEVRON_DOWN = 'M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z';
+
+  function buildTocToggles() {
+    var items = document.querySelectorAll('.md-nav--secondary li.md-nav__item');
+    Array.prototype.forEach.call(items, function (item) {
+      var children = item.querySelector(':scope > ul, :scope > nav');
+      if (!children) return;
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ppsds-toc-toggle';
+      button.setAttribute('aria-expanded', 'true');
+      button.setAttribute('aria-label', 'Collapse this section');
+      button.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + CHEVRON_DOWN + '"/></svg>';
+      button.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var closed = item.classList.toggle('ppsds-toc-closed');
+        button.setAttribute('aria-expanded', closed ? 'false' : 'true');
+        button.setAttribute('aria-label', (closed ? 'Expand' : 'Collapse') + ' this section');
+      });
+      item.appendChild(button);
+    });
+  }
+
   function build() {
+    buildTocToggles();
     Object.keys(COLUMNS).forEach(function (key) {
       var sidebar = document.querySelector(COLUMNS[key].sidebar);
       if (!sidebar) return;
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'ppsds-fold ppsds-fold--' + key;
-      button.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + CHEVRON + '"/></svg>';
+      button.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + MENU + '"/></svg>';
       button.addEventListener('click', function () {
         state[key] = !state[key];
         write(state);

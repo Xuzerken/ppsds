@@ -1,0 +1,222 @@
+/* The front doors: the two-column game block and the "Where do you want to start?" table.
+ *
+ * Both are tables whose columns hold prose of different lengths, so a browser lays them out from
+ * their content: the pictures come out at different widths at different viewports, and the row of
+ * cards stops reading as a row. `table-layout: fixed` gives every column a decided width instead.
+ *
+ * The selector is anchored on the heading's id rather than on a class, because a class would have
+ * to be written into `index.md` as `{: .cards }`, which GitHub would print literally in the README:
+ * the two front doors carry the same markdown on purpose. `tests/test_public_face.py` checks that
+ * this id still matches the heading, so renaming the heading cannot silently drop these rules.
+ *
+ * Two of the properties below exist only because of how Material renders a table:
+ *
+ *   * Material wraps every table in `<div class="md-typeset__scrollwrap">`, so the table is not
+ *     the heading's sibling -- the wrapper is. Both selectors are kept.
+ *   * It also gives the table `display: inline-block`, which is there so a wide table can scroll.
+ *     An inline-block is not a table box, so `table-layout` has nothing to apply to; the display
+ *     has to be put back for the layout to mean anything. `width: 100%` goes with it.
+ */
+#get-started + table,
+#get-started + div table {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+/* One row per reader type: a thumbnail, then who they are, what they want, and where to go. The
+ * image column is the one width worth pinning -- the other three can share what is left. */
+#get-started + table th:first-child,
+#get-started + table td:first-child,
+#get-started + div table th:first-child,
+#get-started + div table td:first-child {
+  width: 92px;
+}
+
+/* Pictures sit at the top of their cells. Aligned at the top a row reads as a row; centred, small
+ * differences in height become a wobble along the middle of the row. */
+#get-started + table td,
+#get-started + div table td {
+  vertical-align: top;
+}
+
+#get-started + table td img,
+#get-started + div table td img {
+  display: block;
+  width: auto;
+  max-width: 140px;
+  height: auto;
+  margin-bottom: 0.35rem;
+}
+
+/* The two-column block at the top of the page: the animation on the left, the rules on the right.
+ * It is a grid rather than an HTML table because Python-Markdown does not parse Markdown inside
+ * table cells (the `md_in_html` extension handles block elements, not `<td>`), and the rules on
+ * the right are Markdown. The README keeps its own HTML table for GitHub and PyPI, where the
+ * Markdown *is* parsed inside the cells.
+ */
+.frontdoor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2rem;
+  align-items: stretch;
+  /* The hero should not grow without bound: past this width the animation becomes a wall and
+   * the table's type has to shrink to fit in the same row. On the site the content column is
+   * already narrower at common laptop sizes, so this only bites on very wide screens. */
+  width: 88%;
+  max-width: 66rem;
+  margin-inline: auto;
+}
+
+/* The game-related part reads slightly narrower than the body text; the details block follows
+ * the game block directly, so one sibling selector keeps them the same width. */
+.frontdoor + details.note {
+  width: 88%;
+  max-width: 66rem;
+  margin-inline: auto;
+}
+
+.frontdoor .frontdoor-col {
+  min-width: 0;
+}
+
+/* The image keeps its own height; the table column stretches to the row's height, so at the
+ * common desktop widths -- where the image is the taller of the two -- they end on the same
+ * line. Where the table is taller, the image is centred against it instead of being stretched. */
+.frontdoor .frontdoor-media {
+  align-self: center;
+}
+
+.frontdoor-col:not(.frontdoor-media) {
+  display: flex;
+}
+
+/* The explanation sits under both columns: the first row is the thing you look at (the animation,
+ * the button, the mapping), the second row is what it means. */
+.frontdoor .frontdoor-wide {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.frontdoor-media p {
+  margin: 0;
+}
+
+.frontdoor img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Material wraps every table in two runtime divs and gives the outer one a vertical margin.
+ * That margin shifts the table's optical centre away from the image's; the grid's centre
+ * alignment can only match what the two columns actually contain, so both wrappers are reset
+ * and their contents centred. */
+.frontdoor-col .md-typeset__scrollwrap,
+.frontdoor-col .md-typeset__table {
+  display: block;
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Distribute the row's height across the table's rows; this is what makes the table's box end
+ * exactly where the animation's does. */
+/* Material's `html .md-typeset__table table { display: inline-block; width: 100% }` outranks a
+ * plain `.frontdoor-col table`; the extra `.frontdoor` class restores the table box so the table
+ * actually fills its column instead of shrinking to its content. */
+.frontdoor .frontdoor-col table {
+  display: table;
+  width: 100%;
+  height: 100%;
+}
+
+/* A compact table so its natural height stays below the animation's at desktop widths; without
+ * this the table would set the row height and the image would be the shorter one. */
+/* Type scales with the viewport: at a laptop width the table is already compact enough to sit
+ * inside the image's height, and on a wide screen it grows instead of staying tiny in a large
+ * card. */
+.frontdoor-col table th,
+.frontdoor-col table td {
+  padding: clamp(0.16rem, 0.08rem + 0.2vw, 0.36rem)
+           clamp(0.35rem, 0.18rem + 0.32vw, 0.65rem) !important;
+  font-size: clamp(0.68rem, 0.3rem + 0.33vw, 0.82rem) !important;
+  line-height: 1.3 !important;
+  vertical-align: middle !important;
+}
+
+
+/* The front page's one call to action: the whole animation is the target, and the disc sits over
+ * its centre like a video's play control. A dark disc rather than a coloured pill, because the
+ * animation is already a dark green surface and the disc only has to say "this is playable". */
+.frontdoor-media {
+  position: relative;
+}
+
+.play-badge {
+  position: absolute;
+  top: 0.8rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.65rem 0.28rem 0.32rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  text-decoration: none;
+  opacity: 0.72;
+  transition: background 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+}
+
+.play-disc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding-left: 0.1rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+  font-size: 0.8rem;
+}
+
+.play-label {
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.play-badge:hover {
+  transform: translateX(-50%) scale(1.06);
+  background: rgba(0, 0, 0, 0.82);
+  opacity: 1;
+}
+
+/* Dim the rest of the animation while the entry is hovered, so the control stands out without a
+ * permanent scrim over the content. */
+.frontdoor-media img {
+  transition: filter 0.2s ease;
+}
+
+.frontdoor-media:has(.play-badge:hover) img {
+  filter: brightness(0.55);
+}
+
+@media screen and (max-width: 44.984375em) {
+  .frontdoor {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* The map in the routes section gets the same narrower measure as the game block above it, so
+ * it reads as an illustration rather than a second full-width hero. */
+.panorama {
+  width: 88%;
+  max-width: 66rem;
+  margin-inline: auto;
+}

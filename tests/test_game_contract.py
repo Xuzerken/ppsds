@@ -32,11 +32,11 @@ from ppsds.scoring_rule.epsilon_logarithm_score import EpsilonLogarithmScore
 from _paths import public_root
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-EXAMPLE_DIR = REPO_ROOT / 'examples' / 'understand_ppsds_by_pmf_betting' / 'experiment'
+EXAMPLE_DIR = REPO_ROOT / 'experiments' / 'pmf_betting'
 
 #: The page's data, in whichever layout this tree uses -- see :mod:`_paths`.
 ASSETS = ((public_root() or REPO_ROOT / 'public') / 'docs'
-          / 'understand_ppsds_by_pmf_betting' / 'game' / 'assets')
+          / 'examples' / 'understand_ppsds_by_pmf_betting' / 'game' / 'assets')
 
 pytestmark = pytest.mark.skipif(
     public_root() is None,
@@ -71,7 +71,7 @@ def _reject_constant(token):
 def test_assets_are_strict_json_with_no_non_finite_numbers(name):
     """A file the browser cannot parse is a broken game, however right the numbers are."""
     path = ASSETS / name
-    assert path.is_file(), f'{path} is missing; run examples/understand_ppsds_by_pmf_betting/experiment/export_game_assets.py'
+    assert path.is_file(), f'{path} is missing; run experiments/pmf_betting/export_game_assets.py'
     json.loads(path.read_text(encoding='utf-8'), parse_constant=_reject_constant)
 
 

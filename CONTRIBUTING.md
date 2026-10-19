@@ -3,6 +3,17 @@
 Thanks for considering it. This is a research package, so the bar that matters most is that a
 change does not silently alter a number — the rest is ordinary.
 
+## Ways to contribute
+
+The [documentation site](https://xuzerken.github.io/ppsds/contributing/) expands each of these:
+
+| If you… | Start here |
+|---|---|
+| Played the game and found something wrong | [Report a problem](https://xuzerken.github.io/ppsds/contributing/reporting/) |
+| Built a simulation, or have a system of your own, and want to give the work back | [Open an issue or a pull request](https://xuzerken.github.io/ppsds/contributing/pull-requests/) |
+| Want to compare methods at scale | [Send a benchmark as a pull request](https://xuzerken.github.io/ppsds/contributing/pull-requests/) |
+| Work in a domain the library does not cover yet | [Talk about a research collaboration](https://xuzerken.github.io/ppsds/contributing/research/) |
+
 ## Setting up
 
 ```bash
@@ -70,6 +81,7 @@ If a difference is intended, say so in the pull request and include the measured
 ```
 src/ppsds/          the distribution
 examples/           runnable examples
+experiments/        the batch experiments (each with its own environment.yml)
 tests/              the test suite
 tools/              procedure gates (see tools/README.md)
 ```
@@ -92,7 +104,7 @@ honest way.
 - **Module paths carry meaning.** `ambiguity/additive_drift/conic_moment` reads as
   *assumption* / *family*. A new ambiguity-set family is a new module beside the existing one,
   not a branch inside it, and the same holds for the adversarial dynamics modes. The
-  [developer guide](https://xuzerken.github.io/ppsds/extending/) walks through that end to end,
+  [developer guide](https://xuzerken.github.io/ppsds/tutorials/developer-guide/) walks through that end to end,
   including what each layer expects from a new family.
 - **Errors are loud.** A wrong `sds_params` key raises and names the accepted keys; a
   `spawn` start method raises rather than producing wrong results. Please keep it that way: the
@@ -101,7 +113,8 @@ honest way.
 
 ## Reporting a problem
 
-Open an issue at https://github.com/Xuzerken/ppsds/issues. If it is a numerical problem, the
+Open an issue at https://github.com/Xuzerken/ppsds/issues; the site has a checklist at
+https://xuzerken.github.io/ppsds/contributing/reporting/. If it is a numerical problem, the
 versions matter a great deal — the two failure modes this package has hit were both specific to
 a numpy or cvxpy version — so please include the output of:
 

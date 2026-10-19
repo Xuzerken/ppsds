@@ -124,6 +124,7 @@ packages = ["src/ppsds"]
 include = [
     "/src/ppsds",
     "/examples",
+    "/experiments",
     "/tests",
     "/README.md",
     "/CHANGELOG.md",
@@ -140,7 +141,7 @@ markers = [
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests", "examples", "tools"]
+src = ["src", "tests", "examples", "experiments", "tools"]
 
 [tool.ruff.lint]
 # Pinned to ruff's own defaults so that a new ruff release cannot turn CI red on its own.

@@ -1,10 +1,11 @@
-# Conda environment for running what is in this directory.
+# Conda environment for developing this repository.
 #
-# `pip install -e ".[dev,experiments]"` builds an equivalent environment without conda; this file
-# exists so the batch runner's scripts have something concrete to create --
-# examples/understand_drpp_on_simulated_ambiguity/batch_experiment/run.sh (Linux/WSL) and run.ps1 (Windows)
-# both activate it by name, so keep `name:` and those scripts in step. The versions below are the
-# ones this repository is tested against; the package's own lower bounds live in pyproject.toml.
+# Every example and experiment directory now carries its own `environment.yml`, so a reader can
+# create exactly what one page needs without pulling in the rest. This file is the maintainers'
+# repository-wide environment (`pip install -e ".[dev,experiments]"` is the conda-free
+# equivalent); the batch runners use their own environment, declared next to them.
+# The versions below are the ones this repository is tested against; the package's own lower
+# bounds live in pyproject.toml.
 #
 # Two traps, both about the word "case":
 #   * Activation is case-sensitive on Linux and WSL: `conda activate drpp`, not `DRPP`.

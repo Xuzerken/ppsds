@@ -1,6 +1,6 @@
 """The coverage arithmetic: can this hand of chips miss, and how much does it catch?
 
-Two implementations of this live in the repository -- ``examples/understand_ppsds_by_pmf_betting/experiment/bet_coverage.py``
+Two implementations of this live in the repository -- ``experiments/pmf_betting/bet_coverage.py``
 and the page's ``coverage.js`` -- and they must agree, because the page's safety badge is a claim
 about money. The pages' side is checked against the exported goldens in ``test_game_page.py``;
 this file is the authority's own tests, plus the one cross-check that keeps "exact" honest: the
@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-EXAMPLE_DIR = REPO_ROOT / 'examples' / 'understand_ppsds_by_pmf_betting' / 'experiment'
+EXAMPLE_DIR = REPO_ROOT / 'experiments' / 'pmf_betting'
 if str(EXAMPLE_DIR) not in sys.path:
     sys.path.insert(0, str(EXAMPLE_DIR))
 

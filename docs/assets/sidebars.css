@@ -23,11 +23,9 @@
 .ppsds-fold:hover { color: var(--md-accent-fg-color); }
 .ppsds-fold svg { display: block; width: 1.2rem; height: 1.2rem; fill: currentcolor; }
 
-/* One chevron per column, each pointing at the edge its column folds towards and turning round
-   once it has. */
-.ppsds-fold--toc svg { transform: rotate(180deg); }
-.ppsds-fold--nav[aria-pressed="true"] svg { transform: rotate(180deg); }
-.ppsds-fold--toc[aria-pressed="true"] svg { transform: rotate(0deg); }
+/* The icon is a menu (three bars), so it needs no rotation to say which way the column folds;
+   the folded state is marked by colour instead. */
+.ppsds-fold[aria-pressed="true"] { color: var(--md-accent-fg-color); }
 
 /* Below the breakpoints the column is the drawer, and the drawer already has a close button: a
    second one inside it would be one control too many for the same job. */
@@ -39,15 +37,61 @@
 }
 
 @media screen and (min-width: 76.25em) {
-  /* A row of its own above the navigation, so the chevron never lands on a nav item. */
+  /* The two columns cost 484 px of a 1440 px page at Material's defaults; a narrower pair gives
+     the game iframe and the reading column some of it back. */
+  .md-sidebar--primary { width: 10rem; }
+  /* A row of its own above the navigation, so the button never lands on a nav item. */
   .md-sidebar--primary .md-sidebar__inner { padding-top: 1.5rem; }
   .md-sidebar--primary .ppsds-fold { right: .2rem; }
   body.ppsds-nav-folded .md-sidebar--primary { width: 2rem; }
   body.ppsds-nav-folded .md-sidebar--primary .md-sidebar__scrollwrap { display: none; }
 }
 @media screen and (min-width: 60em) {
+  .md-sidebar--secondary { width: 10rem; }
   .md-sidebar--secondary .md-sidebar__inner { padding-top: 1.5rem; }
   .md-sidebar--secondary .ppsds-fold { left: .2rem; }
   body.ppsds-toc-folded .md-sidebar--secondary { width: 2rem; }
   body.ppsds-toc-folded .md-sidebar--secondary .md-sidebar__scrollwrap { display: none; }
+}
+
+
+/* Collapsible branches in the table of contents. The chevron sits at the far right of the entry
+   and only appears on entries that have children; the collapsed state hides the nested list but
+   leaves the parent link, so the reader can always get back. */
+.md-nav--secondary li.md-nav__item {
+  position: relative;
+}
+.md-nav--secondary li.md-nav__item > .md-nav__link {
+  padding-right: 1.25rem;
+}
+.md-nav--secondary .ppsds-toc-toggle {
+  position: absolute;
+  top: .18rem;
+  right: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--md-default-fg-color--light);
+}
+.md-nav--secondary .ppsds-toc-toggle:hover {
+  color: var(--md-accent-fg-color);
+}
+.md-nav--secondary .ppsds-toc-toggle svg {
+  display: block;
+  width: 1.05rem;
+  height: 1.05rem;
+  fill: currentcolor;
+  transform: rotate(180deg);
+  transition: transform 0.15s ease;
+}
+.md-nav--secondary li.ppsds-toc-closed > ul,
+.md-nav--secondary li.ppsds-toc-closed > nav {
+  display: none;
+}
+.md-nav--secondary li.ppsds-toc-closed > .ppsds-toc-toggle svg {
+  transform: rotate(0deg);
 }

@@ -10,6 +10,41 @@ artifacts published to collaborators only, never to PyPI: a version number on Py
 and can be yanked but never reused, so it is not spent on half-finished releases. The first
 version on PyPI is `0.1.0`.
 
+## [Unreleased]
+
+### Changed
+
+- **The documentation site is organised as four kinds of node.** Home, then **Examples** (stories
+  you can run), **Experiments** (the same questions at paper scale), **Research** (the common
+  preliminaries and one page per paper, each with its own citation), **Tutorials** (topics treated
+  on their own terms), and **API**. The old flat shelf (`Concepts`, `Predictability`, `Examples`,
+  `Developer Guide`, `Citation`) is gone; `concepts.md` became the Research preliminaries and the
+  separate citation page was retired because every paper page now ends with its citation.
+- **The batch experiments moved out of `examples/` into `experiments/`**:
+  `experiments/drpp/`, `experiments/pmf_betting/` and `experiments/predictability/`. Each example
+  and experiment directory now carries its own `environment.yml`, so one page can be run without
+  installing the rest. `examples/understand_ppsds_by_pmf_betting/` keeps its README: its runnable
+  front is the no-install game page.
+- **The README sells routes, not a page list.** It opens with a two-column game block (the
+  animation beside the rules that map onto the package), a one-row-per-reader entry table, and
+  cross-section routes through Examples, Experiments, Research and Tutorials. The old
+  `The examples` and `A predictor on your own system` sections were removed: both duplicated pages
+  the site now owns.
+- The citation and licence sections were merged; contributing is a reader type in the entry table
+  rather than a separate section.
+
+### Added
+
+- `public/docs/assets/map.png` — a route map across the four sections, used by the README, the site
+  home and `tutorials/map.md`.
+- `public/docs/assets/paper-drpp.png` and `paper-predictability.png` — each paper's own vector
+  figure rasterised separately for its Research page.
+
+### Notes
+
+- **No number moved.** The DRPP experiment was compared against the pre-move commit with
+  `tools/ab_compare.py`; every compared array is bit-identical.
+
 ## [0.0.2] - 2026-10-14
 
 **A private beta, not on PyPI.** The second beta: the package stops being only about DRPP. DRPP
@@ -40,10 +75,10 @@ an upper bound — and a way to feel the difference before reading any of it.
   is known exactly (drift plus a named noise law, non-Gaussian included) and a gymnasium
   environment that steps it. `Env` still serves scene 2; `KnownSdsEnv` is the exception.
 - Examples reproducing the predictability paper's figure (`examples/understand_predictability/`) and
-  running your own pmf bets as an experiment (`examples/understand_ppsds_by_pmf_betting/experiment/`).
-- An interactive page at <https://xuzerken.github.io/ppsds/understand_ppsds_by_pmf_betting/> that scores a hand of bets live,
+  running your own pmf bets as an experiment (`experiments/pmf_betting/`).
+- An interactive page at <https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/> that scores a hand of bets live,
   and a README animation of it. The page replays trajectories exported from
-  `examples/understand_ppsds_by_pmf_betting/experiment/presets.py`, and checks its own JavaScript against vectors computed by
+  `experiments/pmf_betting/presets.py`, and checks its own JavaScript against vectors computed by
   `ppsds` on every load.
 - `EpsilonLogarithmScore`, `AtomPmf`, the pmf predictors and the predictability functions are now
   re-exported from the top level.

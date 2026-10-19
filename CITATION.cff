@@ -53,6 +53,8 @@ references:
       - family-names: He
         given-names: Jianping
     journal: "IEEE Transactions on Automatic Control"
-    # To fill in once the issue is assigned: volume, issue, pages, year, doi.
-    # The DOI is what makes a citation resolvable, so it is worth adding even though the fields
-    # above are already enough for a reader to find the paper.
+    volume: 71
+    issue: 10
+    pages: "6385-6400"
+    year: 2026
+    doi: "10.1109/TAC.2026.3687495"

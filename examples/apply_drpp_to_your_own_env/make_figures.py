@@ -1,4 +1,4 @@
-"""Draw the two figures the README uses for this story.
+"""Draw the two figures the README uses for this example.
 
 Run::
 
@@ -37,7 +37,7 @@ from ppsds.dynamics.identification import encode_action
 from ppsds.probabilistic_predictor.drpp.additive_drift.conic_moment import EigDrpp, NominalPredictor
 from ppsds.scoring_rule.logarithm_score import LogarithmScore
 
-#: The story's own script supplies the identification and the evaluation protocol. Importing them
+#: This example's own script supplies the identification and the evaluation protocol. Importing them
 #: rather than copying them is the point: a figure that re-derives its own numbers is a figure
 #: that can quietly disagree with the table printed next to it, and on a chaotic system it will --
 #: a single trajectory is not an estimate of anything.
@@ -46,9 +46,9 @@ from with_standard_gym_env import (  # noqa: E402  (same directory, run as a scr
 )
 
 EXAMPLE_ROOT = Path(__file__).resolve().parent
-#: ``parents[1]``: this file sits at ``examples/<story>/make_figures.py``, so the repository root
+#: ``parents[1]``: this file sits at ``examples/<example>/make_figures.py``, so the repository root
 #: is **one** level up. Count the levels in the path you are editing rather than copying the index
-#: from a sibling script -- the betting story's exporter is one directory deeper and therefore
+#: from a sibling script -- the betting example's exporter is one directory deeper and therefore
 #: needs ``parents[2]``, and getting this wrong raises nothing at all. It writes to a directory
 #: that looks plausible and the page silently keeps serving the old file.
 DEFAULT_OUT = EXAMPLE_ROOT.parents[1] / 'public' / 'docs' / 'assets'
@@ -64,7 +64,7 @@ PLANE_LABELS = (r'$\dot\theta_1$', r'$\dot\theta_2$')
 RADIUS_90 = 2.1460
 
 IDENT_EPISODES = 20
-#: One of the story's own evaluation seeds, so the trajectory drawn is one the script also scores.
+#: One of this example's own evaluation seeds, so the trajectory drawn is one the script also scores.
 PLOT_SEED = EVAL_SEEDS[0]
 T = 80
 

@@ -1,0 +1,28 @@
+# Conda environment for this experiment only. Create it from this directory:
+#
+#   conda env create -f environment.yml
+#   conda activate ppsds-exp-drpp
+#   python -m pip install -e ../..
+#
+# `pip install -e ".[experiments]"` builds an equivalent environment without conda.
+# run.sh / run.ps1 activate this environment by name, so keep `name:` and those scripts in step.
+# Activation is case-sensitive on Linux/WSL, and the conda directory itself must live on a
+# case-sensitive filesystem: package archives contain paths differing only in case, so
+# `conda env create` aborts with a spurious "CondaVerificationError ... corrupted" otherwise.
+name: ppsds-exp-drpp
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python =3.12
+  - numpy =2.3
+  - scipy =1.16
+  - matplotlib =3.10
+  - pandas =2.3
+  - seaborn =0.13
+  - tqdm =4.67
+  - gymnasium >=1.0
+  - pip
+  - pip:
+      - cvxpy ==1.7.4

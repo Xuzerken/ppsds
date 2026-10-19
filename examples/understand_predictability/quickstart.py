@@ -162,7 +162,8 @@ How to read this
 * The two lines do **not** meet at eps = 0. The score is discontinuous there: at exactly
   eps = 0 it is log p(x), while for any eps > 0 it carries a d_x * log(2 eps) volume term that
   rushes to -infinity. Neither line is a limit of the other.
-* Run ``batch_experiment/run.py --save-figure`` for the paper's three-panel figure at 100,000
+* Run ``experiments/predictability/run.py --save-figure`` for the paper's three-panel
+  figure at 100,000
   trajectories.
 """)
 
@@ -179,7 +180,8 @@ try:
 except ImportError:
     print('(matplotlib not installed -- skipping the figure; `pip install ppsds[experiments]`)')
 else:
-    # Same panel size as batch_experiment/run.py, and as the published figure (see the note there).
+    # Same panel size as experiments/predictability/run.py, and as the published figure (see
+    # the note there).
     figure, axes = plt.subplots(1, len(panels), figsize=(6.4 * len(panels), 4.8), squeeze=False)
     for ax, panel in zip(axes[0], panels):
         plot_predictability_panel(ax, panel['scores'], eps=panel['eps'],

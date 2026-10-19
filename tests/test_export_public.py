@@ -56,6 +56,7 @@ def test_public_release_assets_are_exported_but_experiment_output_is_not(ep):
     # Regenerated experiment output, wherever it sits: never exported.
     assert ep.should_skip('examples/understand_predictability/predictability.png')
     assert ep.should_skip('examples/understand_drpp_on_simulated_ambiguity/data/gym/plot.png')
+    assert ep.should_skip('experiments/drpp/data/gym/plot.png')
     # The carve-out is for `public/` only -- a PNG at the repository root is not swept in with it.
     assert ep.should_skip('figure.png')
 
@@ -72,8 +73,9 @@ def test_ordinary_files_are_still_exported(ep):
     """Guards against a carve-out that accidentally swallows the normal case."""
     for rel in ('src/ppsds/__init__.py',
                 'examples/apply_drpp_to_your_own_env/quickstart.py',
+                'experiments/drpp/run.py',
                 'public/README.md',
-                'public/docs/concepts.md'):
+                'public/docs/research/index.md'):
         assert not ep.should_skip(rel), f'{rel} should be exported'
 
 
@@ -91,8 +93,10 @@ def test_a_png_under_public_really_does_reach_the_export(ep):
     asset_dir = (public_root() or REPO_ROOT / 'public') / 'docs' / 'assets'
     stray_public = asset_dir / '__export_probe__.png'
     stray_experiment = REPO_ROOT / 'examples' / '__export_probe__.png'
+    stray_experiments_tree = REPO_ROOT / 'experiments' / '__export_probe__.png'
     stray_public.write_bytes(b'\x89PNG\r\n\x1a\n')
     stray_experiment.write_bytes(b'\x89PNG\r\n\x1a\n')
+    stray_experiments_tree.write_bytes(b'\x89PNG\r\n\x1a\n')
     try:
         exported = ep.iter_export()
         assert 'docs/assets/__export_probe__.png' in exported, (
@@ -100,9 +104,12 @@ def test_a_png_under_public_really_does_reach_the_export(ep):
             'while `--check` reported a match')
         assert 'examples/__export_probe__.png' not in exported, (
             'a PNG under examples/ reached the export -- experiment output must never ship')
+        assert 'experiments/__export_probe__.png' not in exported, (
+            'a PNG under experiments/ reached the export -- experiment output must never ship')
     finally:
         stray_public.unlink(missing_ok=True)
         stray_experiment.unlink(missing_ok=True)
+        stray_experiments_tree.unlink(missing_ok=True)
 
 
 def test_every_committed_release_asset_is_in_the_export(ep):

@@ -1,0 +1,23 @@
+# Conda environment for this example only. The example itself is the no-install game page;
+# this file covers the core library so the exported bets can be scored here.
+#
+#   conda env create -f environment.yml
+#   conda activate ppsds-betting
+#   python -m pip install -e ../..
+#
+# Activation is case-sensitive on Linux/WSL, and the conda directory itself must live on a
+# case-sensitive filesystem: package archives contain paths differing only in case, so
+# `conda env create` aborts with a spurious "CondaVerificationError ... corrupted" otherwise.
+name: ppsds-betting
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python =3.12
+  - numpy =2.3
+  - scipy =1.16
+  - gymnasium >=1.0
+  - pip
+  - pip:
+      - cvxpy ==1.7.4

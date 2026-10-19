@@ -129,7 +129,8 @@ def test_the_sdist_carries_the_examples_and_tests_the_readme_points_at(artifacts
                      'examples/apply_drpp_to_your_own_env/quickstart.py',
                      'examples/understand_drpp_on_simulated_ambiguity/quickstart.py',
                      'examples/understand_predictability/quickstart.py',
-                     'examples/understand_ppsds_by_pmf_betting/experiment/quickstart.py',
+                     'experiments/pmf_betting/quickstart.py',
+                     'experiments/drpp/run.py',
                      'tests/conftest.py'):
         assert required in names, f'{required} is missing from the sdist'
     assert any(name.startswith('src/ppsds/') for name in names)
@@ -150,7 +151,8 @@ def test_the_sdist_carries_nothing_private(artifacts):
     for prefix in ('docs/', 'papers/', 'tools/', 'build/', 'dist/'):
         leaked = [n for n in names if n.startswith(prefix)]
         assert not leaked, f'{prefix} must not be in the sdist, found {leaked[:5]}'
-    # The sdist contains ``examples/`` but **not** ``public/``, so this never sees a release asset
+    # The sdist contains ``examples/`` and ``experiments/`` but **not** ``public/``, so this
+    # never sees a release asset
     # from ``public/docs/assets/`` -- which *is* allowed to be a PNG (see
     # ``tools/export_public.py``). A PNG that reaches the sdist still means experiment output
     # leaked in, which is what this checks.
@@ -168,9 +170,10 @@ def test_the_shipped_code_carries_no_private_references(artifacts, repo_root):
     ``experiment/cache.py`` and ``numerics/random_variables.py`` cited the private development
     records **by path**, which resolves for nobody outside this repository.
 
-    The scope is deliberately the **code** -- the wheel's ``ppsds/**`` and the sdist's ``src/``
-    and ``examples/``. The README, and the long description it produces, are covered by the
-    export gate in ``tools/export_public.py``, which scans the whole published tree: the README
+    The scope is deliberately the **code** -- the wheel's ``ppsds/**`` and the sdist's ``src/``,
+    ``examples/`` and ``experiments/``. The README, and the long description it produces, are
+    covered by the export gate in ``tools/export_public.py``, which scans the whole published
+    tree: the README
     in *this* repository is a development document that the public one replaces, so scanning it
     here would report the same expected hits on every run and the gate would be ignored.
     """
@@ -197,7 +200,7 @@ def test_the_shipped_code_carries_no_private_references(artifacts, repo_root):
             # (the game page lives under ``public/``), but they *were* exported to the public
             # repository for months without any gate reading them, so the suffix list now covers
             # what a future example might ship rather than only what today's does.
-            if relative.startswith(('src/', 'examples/')) and \
+            if relative.startswith(('src/', 'examples/', 'experiments/')) and \
                     relative.endswith(('.py', '.sh', '.ps1', '.js', '.html')):
                 text = tar.extractfile(member).read().decode('utf-8', 'replace')
                 hits += _scan(text, f'sdist:{relative}', tokens)

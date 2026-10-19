@@ -71,7 +71,10 @@ class Preset:
         A factory returning a fresh noise law (fresh, because the law objects are mutable-ish
         and sampling from a shared one would couple the game and the experiment).
     x0 : ndarray
-        Where a trajectory starts.
+        Where a trajectory starts. Chosen so that the **one-step nominal displacement**
+        ``f(x0) - x0`` is comparable to (or larger than) the noise's RMS radius: the game has to
+        show the system moving, and the origin is a fixed point of the shear. This is a
+        legibility choice, not a modelling one -- the drift and the noise law are untouched.
     epsilons : tuple of float
         The neighbourhood radii offered, smallest first. ``eps`` is the game's difficulty dial.
     hidden_noise : bool
@@ -127,7 +130,7 @@ PRESETS = {
                'the further off the rail it sits, the further along it slides.',
         drift=_shear,
         noise=lambda: multivariate_uniform(low=-np.ones(2), high=np.ones(2)),
-        x0=np.zeros(2),
+        x0=np.array([0.0, 0.9]),
         epsilons=(0.25, 0.5, 0.75),
     ),
     'rotation': Preset(
@@ -139,7 +142,7 @@ PRESETS = {
                'centre at a fixed distance from it.',
         drift=_rotation,
         noise=lambda: multivariate_normal(mean=np.zeros(2), cov=0.25 * np.eye(2)),
-        x0=np.array([1.0, 0.0]),
+        x0=np.array([3.0, 0.0]),
         epsilons=(0.25, 0.5, 0.75),
     ),
     'damped': Preset(
@@ -151,7 +154,7 @@ PRESETS = {
                'its size, so the puck spirals in and every round is a smaller one.',
         drift=_damped,
         noise=lambda: multivariate_uniform(low=-0.3 * np.ones(2), high=0.3 * np.ones(2)),
-        x0=np.array([1.5, 0.0]),
+        x0=np.array([2.0, 0.0]),
         epsilons=(0.1, 0.2, 0.4),
     ),
     # The two biased tables. Everything below is the same machinery with a noise law that is not
@@ -171,7 +174,7 @@ PRESETS = {
                    ((-1.0, 1.0 / 3.0), (1.0, 1.0))],
             weights=[0.10, 0.80, 0.10],
         ),
-        x0=np.zeros(2),
+        x0=np.array([0.0, 0.9]),
         epsilons=(0.25, 0.5, 0.75),
     ),
     'house_rules': Preset(
@@ -189,7 +192,7 @@ PRESETS = {
                    ((0.0, -1.0), (1.0, 0.0))],
             weights=[0.60, 0.20, 0.15, 0.05],
         ),
-        x0=np.array([1.0, 0.0]),
+        x0=np.array([3.0, 0.0]),
         epsilons=(0.25, 0.5, 0.75),
         hidden_noise=True,
     ),

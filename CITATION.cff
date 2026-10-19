@@ -13,7 +13,8 @@ type: software
 license: MIT
 repository-code: "https://github.com/Xuzerken/ppsds"
 url: "https://xuzerken.github.io/ppsds/"
-version: 0.0.2
+version: "0.0.3a0"            # PEP 440; the release label is 0.0.3-alpha
+date-released: 2026-10-19
 keywords:
   - probabilistic prediction
   - stochastic dynamical systems

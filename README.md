@@ -8,7 +8,7 @@
 <tr>
 <td>
 
-[<img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/demo.gif" width="480" alt="Placing stacks where a stochastic system will go next, then watching the share that paid and its score settle">](https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/)
+[<img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/demo.gif" width="480" alt="The game's six-step guided tour: turning on prediction, covering the gold noise support with stacks, raising one stack, dealing, and moving to the next round">](https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/)
 
 **[▶ Play →](https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/)**
 
@@ -38,6 +38,10 @@ A puck moves around a table. You bet on where it will land next by placing stack
 pip install ppsds
 ```
 
+`0.0.3-alpha` is a pre-release: pin it with `pip install ppsds==0.0.3a0`, or pass `--pre`. Plain
+`pip install ppsds` selects it while no stable version exists; once `0.1.0` is out, plain install
+selects the stable release.
+
 Core dependencies are `numpy`, `scipy`, `cvxpy` and `gymnasium`; Python 3.10 or newer. Only the experiment and plotting periphery needs more:
 
 ```
@@ -61,7 +65,7 @@ Playing it is **free**, needs **no install**, and **keeps nothing**: the page ha
 
 Rows are **how far you want to go**. Columns are **what you start from**, ordered from nothing to data without a model.
 
-| **How far ↓ / What you start from →** | **A · Just curious**<br>Nothing yet. | **B · Build the system yourself**<br>No environment; declare a model and simulate it. | **C · You have a target system**<br>You can step it; you want a prediction for it. | **D · Only data**<br>No model and no environment. |
+| **From →** | **A · Just curious**<br>Nothing yet. | **B · Build it yourself**<br>No environment. | **C · Your system**<br>You can step it. | **D · Data only**<br>No model or env. |
 |---|---|---|---|---|
 | **L0 · See** | <img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/demo.gif" width="120" alt="the betting game"><br>[Just curious](https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/): see what a probabilistic prediction is in one minute. | — | — | — |
 | **L1 · Use** | — | <img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/papers.png" width="120" alt="The two papers' figures at one scale"><br>[Reproduce a paper](https://xuzerken.github.io/ppsds/research/): build the system from the paper and check its figures. | <img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/acrobot_simulation.gif" width="120" alt="Acrobot in a rendered simulation"><br>[Use it on your system](https://xuzerken.github.io/ppsds/examples/apply_drpp_to_your_own_env/): put a predictor on a Gymnasium environment you already have. | [Only data](https://xuzerken.github.io/ppsds/research/preliminaries/#honest-limits): you need a system you can step; read the limits first. |
@@ -128,7 +132,7 @@ If you use `ppsds`, cite the software:
 ```
 
 GitHub's **Cite this repository** button reads
-[`CITATION.cff`](https://github.com/Xuzerken/ppsds/blob/main/CITATION.cff) and produces the same entry; an archived release with a DOI will be added once the first version is tagged. Each paper's citation is at the end of its page: [conic DRPP paper](https://xuzerken.github.io/ppsds/research/drpp-conic/#citation) and [probabilistic predictability paper](https://xuzerken.github.io/ppsds/research/probabilistic-predictability/#citation).
+[`CITATION.cff`](https://github.com/Xuzerken/ppsds/blob/main/CITATION.cff) and produces the same entry; an archived release with a DOI will be added once the first stable release is archived. Each paper's citation is at the end of its page: [conic DRPP paper](https://xuzerken.github.io/ppsds/research/drpp-conic/#citation) and [probabilistic predictability paper](https://xuzerken.github.io/ppsds/research/probabilistic-predictability/#citation).
 
 `ppsds` is **MIT** licensed: use it freely, keep the copyright and licence notice. If you want to contribute, [CONTRIBUTING](https://github.com/Xuzerken/ppsds/blob/main/CONTRIBUTING.md) has the setup, the tests, and the rule that a change must not move a number.
 

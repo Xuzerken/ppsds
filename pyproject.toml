@@ -12,8 +12,10 @@
 # tqdm) are declared as the optional extra `experiments`.
 #
 # Version: `src/ppsds/__init__.py` holds `__version__`, the single source of truth (read
-# dynamically below). Semantics of the 0.x series: `0.0.x` are private beta artifacts that
-# are never uploaded to PyPI; `0.1.0` is the first public release.
+# dynamically below). `0.0.1` and `0.0.2` were private hand-outs and never reached PyPI. From
+# `0.0.3-alpha` (PyPI `0.0.3a0`) on, a PEP 440 pre-release suffix (`aN` / `bN` / `rcN`) means
+# the build is published to PyPI as a pre-release; an unqualified `0.0.x` remains a private
+# hand-out. `0.1.0` is the first stable public release.
 #
 # `requires-python` is the lowest version the syntax needs; the CI test matrix is what makes
 # that claim true, so it starts at that same version.
@@ -38,7 +40,7 @@ keywords = [
     "stochastic dynamical systems",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",

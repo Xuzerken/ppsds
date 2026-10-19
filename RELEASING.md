@@ -18,20 +18,30 @@ python tools/export_public.py --target ../ppsds --commit --push
 this repository does not have, and exporting would revert it — the script says which paths and
 what to do.
 
-## Beta hand-out (the `0.0.x` line)
+## Two channels: private hand-outs and PyPI pre-releases
 
-A beta goes to collaborators, not to PyPI. A version number there is permanent, so it is not
-spent before the release is meant to be public.
+A version number on PyPI is permanent, so the version string decides the channel:
+
+- **Unqualified `0.0.x`** (for example `0.0.2`) is a private hand-out. It stays a GitHub Release
+  attachment; the `publish` workflow builds the artifacts and deliberately skips PyPI.
+- **A PEP 440 pre-release suffix** (`aN` / `bN` / `rcN`, for example `0.0.3a0`) is published to
+  PyPI as a pre-release. PyPI and pip both treat it as a pre-release: it is never chosen over a
+  stable version, and users pin it (`ppsds==0.0.3a0`) or pass `--pre`.
+- **A version without either** (for example `0.1.0`) is a stable release and publishes normally.
+
+### Private hand-out (unqualified `0.0.x`)
+
+A private hand-out goes to collaborators, not to PyPI.
 
 ```bash
-# in the public clone, on main, with __version__ already at the beta number
-git tag -a v0.0.2 -m "ppsds 0.0.2 (private beta)"
+# in the public clone, on main, with __version__ already at the hand-out number
+git tag -a v0.0.2 -m "ppsds 0.0.2 (private hand-out)"
 git push origin v0.0.2
 ```
 
 The `publish` workflow runs, builds the sdist and the wheel, and then **deliberately does not
-publish**: it reports that a `0.0.x` version is a beta and stops short of PyPI. That is the
-guard, not a failure — see the job's notice.
+publish**: it reports that the version has no pre-release suffix and stops short of PyPI. That is
+the guard, not a failure — see the job's notice.
 
 The artifacts are still attached to the run. Download `dist` from the workflow run's artifacts
 and attach both files to a GitHub Release cut from the tag. Then hand out the release, not the
@@ -39,6 +49,16 @@ repository URL: whoever receives it installs with
 
 ```bash
 pip install ./ppsds-0.0.2-py3-none-any.whl
+```
+
+### Pre-release on PyPI
+
+Tag `v0.0.3a0` (the suffix is part of the version and must match `__version__` exactly). The
+guard sees the pre-release suffix and publishes. Mark the GitHub Release **Set as a
+pre-release**, and tell testers the exact pin:
+
+```bash
+pip install ppsds==0.0.3a0     # or: pip install --pre ppsds
 ```
 
 **Invite collaborators to the release, not to the development.** The repository they can see is
@@ -57,7 +77,8 @@ All workflows on `main`: `tests`, `core-only`, `lower-bounds`, `lint`, `build`, 
 ## 2. Bump the version and the changelog
 
 - `src/ppsds/__init__.py` — `__version__`. It is the single source of truth; `pyproject.toml`
-  reads it dynamically.
+  reads it dynamically. Use the PEP 440 form: a pre-release keeps its suffix (`0.0.3a0`), and
+  the tag must match it exactly.
 - `CHANGELOG.md` — move `[Unreleased]` to the new version with today's date.
 
 ```bash
@@ -79,15 +100,15 @@ as well, because the README — which is the long description — tells readers 
 
 ## 4. Rehearse on TestPyPI
 
-⚠️ **Order matters here, and there is a GitHub plan constraint behind it.** The `publish` jobs
-declare `environment: pypi` / `environment: testpypi`, and PyPI's Trusted Publisher is
-configured with the same environment name — the two have to agree. But **GitHub Free can only
-configure environments in public repositories** (personal accounts need Pro, organisations need
-Team for private ones). So while the repository is still private, this rehearsal cannot go
-through the workflow, and the workflow-independent part of it is what to do first:
+The repository is public by the time the first upload happens, so the `pypi` and `testpypi`
+GitHub environments exist (Settings → Environments, each with yourself as a required reviewer),
+and both PyPI and TestPyPI have a Trusted Publisher entry for this repository. Create those
+before tagging.
+
+First rehearse the artifact itself, without the network:
 
 ```bash
-# build from the public clone, then rehearse the artifact itself
+# build from the public clone, then rehearse the artifact
 rm -rf dist build && python -m build
 python -m venv /tmp/rehearse
 /tmp/rehearse/bin/pip install dist/ppsds-*.whl
@@ -99,9 +120,8 @@ tar -xzf dist/ppsds-*.tar.gz -C /tmp
 /tmp/rehearse/bin/python /tmp/ppsds-<version>/examples/apply_drpp_to_your_own_env/quickstart.py
 ```
 
-Once the repository is public, create the `pypi` and `testpypi` environments (Settings →
-Environments, each with yourself as a required reviewer) and rehearse the upload path itself.
-Never rehearse an upload on PyPI. A version number there is permanent.
+Then rehearse the upload path itself with a manual `publish` run (`target: testpypi`). Never
+rehearse an upload on PyPI. A version number there is permanent.
 
 ```bash
 python -m venv /tmp/rehearse
@@ -117,8 +137,8 @@ is a separate service with its own account, and its own Trusted Publisher entry.
 ## 5. Tag, and let CI publish
 
 Tag on the **public** repository, since that is the commit PyPI and any archive will reference.
-The `publish` workflow compares the tag against `__version__` and refuses to upload if they
-disagree.
+The `publish` workflow compares the tag against `__version__` **exactly, including the
+pre-release suffix** (`v0.0.3a0`, not `v0.0.3-alpha`), and refuses to upload if they disagree.
 
 ```bash
 git -C ../ppsds tag -a v<version> -m "ppsds <version>"
@@ -133,15 +153,17 @@ exactly this owner, repository, workflow filename and environment.
 
 - The PyPI page renders: no literal `$$`, no links that 404, correct metadata and classifiers.
 - `pip install ppsds==<version>` in a clean environment on more than one platform, then run an
-  example.
-- The documentation site is live at https://xuzerken.github.io/ppsds/ — Pages cannot be served
-  from a private repository, so the first release is also when the site goes up.
+  example. For a pre-release, also check `pip install --pre ppsds`; a plain `pip install ppsds`
+  selects the pre-release only while no stable version exists.
+- The documentation site is live at https://xuzerken.github.io/ppsds/.
 
 ## 7. Archive and cite
 
-Cut a GitHub Release from the tag, using the changelog section as the description. If Zenodo is
-watching the repository, tagging archives it and mints a DOI; put that DOI into `CITATION.cff`
-and the citation page, and commit. That is a documentation change and needs no version bump.
+Cut a GitHub Release from the tag, using the changelog section as the description. For a
+pre-release, check **Set as a pre-release**. If Zenodo is watching the repository, tagging
+archives it and mints a DOI; put that DOI into `CITATION.cff` and the citation page, and commit.
+That is a documentation change and needs no version bump. Add the DOI after the first **stable**
+release.
 
 ## Afterwards
 

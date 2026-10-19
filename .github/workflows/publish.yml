@@ -33,11 +33,12 @@ jobs:
   # compared with `__version__` first: a mismatch would mean either uploading a version nobody
   # intended, or failing after the artifact already exists.
   #
-  # The second question exists because this repository's versioning has a private phase. A `0.0.x`
-  # version is a beta handed to collaborators through a GitHub Release, and **must not reach
-  # PyPI** -- so tagging one builds the artifacts but deliberately skips publishing, rather than
-  # spending a permanent version number on something half-finished. The workflow still uploads
-  # `dist/` as an artifact, which is exactly what a beta hand-out needs.
+  # The second question is which channel the version belongs to. An unqualified `0.0.x` is a
+  # private hand-out: it is attached to a GitHub Release and **must not reach PyPI**, so tagging
+  # one builds the artifacts but deliberately skips publishing. A PEP 440 pre-release suffix
+  # (`aN` / `bN` / `rcN`, e.g. `0.0.3a0`) marks a public pre-release -- an alpha or a beta -- and
+  # may go to PyPI, where PyPI itself keeps it out of stable resolution. Everything else is a
+  # stable release and publishes normally.
   guard:
     name: tag matches __version__, and may be published
     runs-on: ubuntu-latest
@@ -61,13 +62,34 @@ jobs:
             echo "manual run, __version__=${version} (no tag to compare)"
           fi
 
+          # An explicit PEP 440 pre-release suffix is the dividing line between "this build is
+          # for PyPI" and "this is a private hand-out". Canonical forms are aN/bN/rcN/.devN;
+          # the dash spellings are accepted too, so a hand-typed version cannot silently turn a
+          # real pre-release into a skipped upload.
+          case "$version" in
+            *a[0-9]*|*b[0-9]*|*rc[0-9]*|*.dev[0-9]*|*-alpha*|*-beta*|*-rc*)
+              prerelease=true
+              ;;
+            *)
+              prerelease=false
+              ;;
+          esac
+
           case "$version" in
             0.0.*)
-              echo "publishable=false" >> "$GITHUB_OUTPUT"
-              echo "::notice title=Not publishing to PyPI::ppsds ${version} is a 0.0.x beta. \
-          Betas are handed out through a GitHub Release, and a version number on PyPI is \
+              if [ "$prerelease" = "true" ]; then
+                echo "publishable=true" >> "$GITHUB_OUTPUT"
+                echo "::notice title=Publishing a pre-release::ppsds ${version} carries a \
+          pre-release suffix, so this run uploads it to PyPI as a pre-release. Mark the GitHub \
+          Release as a pre-release too; installers who want it must pin it or pass --pre."
+              else
+                echo "publishable=false" >> "$GITHUB_OUTPUT"
+                echo "::notice title=Not publishing to PyPI::ppsds ${version} has no pre-release \
+          suffix, so it is treated as a private 0.0.x hand-out. A version number on PyPI is \
           permanent, so this run only builds the artifacts -- download them from the run's \
-          artifacts to attach to the release."
+          artifacts to attach to the release. If this build is meant for PyPI, version it as a \
+          pre-release (for example 0.0.4a0) and tag again."
+              fi
               ;;
             *)
               echo "publishable=true" >> "$GITHUB_OUTPUT"

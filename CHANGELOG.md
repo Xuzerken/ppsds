@@ -5,12 +5,64 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with the usual pre-1.0 caveat that
 a minor version may change the API.
 
-**How the version numbers are used here.** During development, `0.0.x` are private beta
-artifacts published to collaborators only, never to PyPI: a version number on PyPI is permanent
-and can be yanked but never reused, so it is not spent on half-finished releases. The first
-version on PyPI is `0.1.0`.
+**How the version numbers are used here.** `0.0.1` and `0.0.2` were private hand-outs and never
+reached PyPI. From `0.0.3-alpha` (PyPI: `0.0.3a0`) on, pre-releases are published to PyPI but
+marked as pre-releases: installers need an exact pin or pass `--pre`, and a pre-release is never
+chosen over a stable release. The first stable public release will be `0.1.0`. A PyPI version
+number is permanent — it can be yanked but never reused — so an unqualified `0.0.x` build that is
+not meant for PyPI stays a GitHub Release attachment.
 
 ## [Unreleased]
+
+## [0.0.3-alpha] - 2026-10-19
+
+**A public alpha pre-release, on PyPI as `0.0.3a0`.** Install it with
+`pip install ppsds==0.0.3a0` (or `pip install --pre ppsds`); the GitHub Release is marked
+pre-release. This is the first release published to PyPI, so the docs site and the repository
+become public with it.
+
+### Added
+
+- **The game page's first-visit tour** — a six-step card pinned to the table's lower-left corner
+  over the first round, with a bouncing arrow pointing at the one thing each step is about. It
+  waits for its own action — turn on prediction, place a stack, cover the noise support, change a
+  height, deal, next round — and **Next** stays disabled until the table is in that state;
+  **Back** re-reads the previous step without undoing anything. **Skip** closes the tour for the
+  visit and also keeps the static "Place your stacks" hint out of the way; the last step closes the
+  card as soon as Next round is pressed. A teaching switch beside Hide panel turns it off, the
+  guide restarts it, and nothing is stored: every visit starts it again.
+- **Batch selection** — a Select mode plus Shift-click and a box gesture; the height slider,
+  `−`/`+`, Remove and dragging all act on the selection, and a group move is refused whole if any
+  destination is taken.
+- **Noise-support overlay** — the landing law is drawn around the prediction in the marker's gold
+  at a low opacity: the exact box for uniform noise, the weighted bands of a block law, a 3σ window
+  for a Gaussian, and nothing on a table that keeps its law. It is part of the prediction switch,
+  not a switch of its own.
+- **Auto-continue** — advance a settled round after a pause, separately from auto-play.
+
+### Changed
+
+- **The game's starting points** — each table's `x0` is chosen so the one-step nominal displacement
+  is at least the noise's RMS radius. The drift matrices and noise laws are unchanged, so par and
+  the safe layouts do not move; the replay states are re-recorded.
+- **The height control** — a reachable cap at eight times a fresh stack, a gentler `−`/`+` step
+  (12%) and a slower hold-to-repeat, so a tower cannot be made unreadable by a mis-touch.
+- **`keep my layout` starts on**, and the Deal / Next round / Play again button carries a phase
+  icon and a settled-state highlight.
+- **The table starts bare** — `prediction` and `last rounds` start off, so the first thing on the
+  felt is the puck alone; the tour's first step turns the prediction (and, with it, the gold noise
+  support) on. Neither switch changes a number.
+
+### Removed
+
+- **Undo**, long-press deletion and the Move button. Clear and a batch Remove ask for a second
+  press, since there is no longer an undo to recover them.
+
+### Fixed
+
+- A tap on bare felt while a stack's toolbar is open now only closes the toolbar instead of also
+  placing a stack under the hand.
+- The game page's direct link in the docs now includes the `examples/` path segment.
 
 ## [0.0.2] - 2026-10-19
 
@@ -92,6 +144,9 @@ documentation around the question of who each page is for.
 **A private beta, not on PyPI.** Everything below is the first release; `0.0.1` is handed to
 collaborators through a GitHub Release so that problems are found before the version number that
 matters is spent. The first public version will be `0.1.0`, and it will contain this.
+
+*(Updated 2026-10-19: the policy changed before `0.1.0` — `0.0.3-alpha` became the first PyPI
+pre-release. The paragraph above records the plan as it stood at `0.0.1`.)*
 
 ### Added
 

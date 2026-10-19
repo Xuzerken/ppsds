@@ -67,7 +67,7 @@ nav:
   - Home: index.md
   - Examples:
       - examples/index.md
-      - Play: examples/understand_ppsds_by_pmf_betting/index.md
+      - Understand ppsds by playing bet game: examples/understand_ppsds_by_pmf_betting/index.md
       - Put it on your own system: examples/apply_drpp_to_your_own_env/index.md
       - What "worst case" means: examples/understand_drpp_on_simulated_ambiguity/index.md
       - The ceiling: examples/understand_predictability/index.md

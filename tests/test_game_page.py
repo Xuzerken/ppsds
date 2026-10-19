@@ -62,7 +62,8 @@ pytestmark = pytest.mark.skipif(
 
 #: The page's modules, by the job each does. The pure ones are imported and executed; the renderer
 #: is only parsed.
-PURE_MODULES = ('scoring.js', 'coverage.js', 'world.js', 'theme.js', 'scene2d.js', 'gestures.js', 'game.js')
+PURE_MODULES = ('scoring.js', 'coverage.js', 'world.js', 'theme.js', 'scene2d.js', 'gestures.js',
+                'tutorial.js', 'game.js')
 RENDERER = 'scene.js'
 
 HARNESS = r'''
@@ -80,6 +81,7 @@ const scoring = await load('scoring.js');
 const game = await load('game.js');
 const world = await load('world.js');
 const gestures = await load('gestures.js');
+const tutorial = await load('tutorial.js');
 
 const presets = read('presets.json');
 const trajectories = read('trajectories.json');
@@ -186,6 +188,7 @@ if (play.lastRound() === null) {
   play.settle(game.THROW_MS);
 }
 const betsWith = JSON.stringify(play.bets(play.lastRound()));
+play.state.aimAssist = true; // the page starts with it off; this section is about the switch
 const viewWith = play.view(game.THROW_MS);
 play.state.aimAssist = false;
 const viewWithout = play.view(game.THROW_MS);
@@ -287,20 +290,184 @@ result.miss = {
   summaryRuined: play.runSummary().ruined,
 };
 
-// 7. A dragged stack is undoable: one undo step per gesture, not one per pointer frame.
+// 7. A drag stays where it is dropped (there is no undo any more), and a tap on bare felt while
+//    anything is selected only closes the selection instead of placing another stack under the
+//    hand that was reaching for the edge of the screen.
 play.restart(0);
 play.clearStacks();
 play.placeStack([0.0, 0.0]);
 const before = { ...play.state.stacks[0] };
-play.markEdit();
+play.beginEdit();
 play.moveStack(0, [4.0, -3.0]);
 const dragged = { ...play.state.stacks[0] };
-play.undo();
-result.dragUndo = {
+result.drag = {
   moved: dragged.x !== before.x || dragged.y !== before.y,
-  restored: play.state.stacks[0] && Math.abs(play.state.stacks[0].x - before.x) < 1e-9
-    && Math.abs(play.state.stacks[0].y - before.y) < 1e-9,
+  persists: play.state.stacks[0] && Math.abs(play.state.stacks[0].x - dragged.x) < 1e-9
+    && Math.abs(play.state.stacks[0].y - dragged.y) < 1e-9,
 };
+play.toggleSelection(0);
+const selectedBefore = play.state.selection.length;
+const dismissed = play.placeStack([3.0, 3.0]);
+result.dismiss = {
+  selectedBefore,
+  placed: dismissed.placed,
+  dismissed: dismissed.dismissed === true,
+  stacksAfterFirst: play.state.stacks.length,
+  selectionAfterFirst: play.state.selection.length,
+  secondPlacement: play.placeStack([3.0, 3.0]).placed,
+  stacksAfterSecond: play.state.stacks.length,
+};
+
+// 7b. A selection is a group: one weight for all, one step for all, one move for all -- and a move
+//     that would put any member on an occupied cell moves nothing rather than half the group.
+play.restart(0);
+play.clearStacks();
+play.placeStack([-2.0, 0.0]);
+play.placeStack([0.0, 0.0]);
+play.placeStack([2.0, 0.0]);
+play.placeStack([4.0, 0.0]);
+const batchInitial = play.state.stacks.map((stack) => [stack.x, stack.y]);
+play.selectIndices([0, 1, 2]);
+const batchSelected = play.state.selection.slice();
+play.setSelectionWeight(2);
+const batchWeights = play.state.stacks.map((stack) => stack.w);
+play.nudgeSelection(2);
+const batchNudged = play.state.stacks.map((stack) => stack.w);
+const batchBase = play.predicted();
+const anchorX = play.state.stacks[1].x;
+const anchorY = play.state.stacks[1].y;
+const batchMoved = play.moveStack(1, [batchBase[0] + anchorX + 1, batchBase[1] + anchorY]);
+const batchOffsets = play.state.stacks.map((stack) => [stack.x, stack.y]);
+const blockedMove = play.moveStack(
+  1, [batchBase[0] + batchOffsets[1][0] + 1, batchBase[1] + batchOffsets[1][1]]);
+const afterBlocked = play.state.stacks.map((stack) => [stack.x, stack.y]);
+const removed = play.removeSelection();
+result.batch = {
+  selected: batchSelected,
+  initial: batchInitial,
+  weights: batchWeights,
+  nudged: batchNudged,
+  moved: batchMoved,
+  offsets: batchOffsets,
+  // The fourth stack was not selected and did not move; the three moved by exactly one cell.
+  movedTogether: batchOffsets.every((at, index) => (index === 3
+    ? at[0] === batchInitial[3][0] && at[1] === batchInitial[3][1]
+    : Math.abs(at[0] - (batchInitial[index][0] + 1)) < 1e-9
+      && Math.abs(at[1] - batchInitial[index][1]) < 1e-9)),
+  blocked: blockedMove,
+  unchangedAfterBlock: JSON.stringify(afterBlocked) === JSON.stringify(batchOffsets),
+  removed,
+  remaining: play.state.stacks.length,
+  remainingX: play.state.stacks[0] && play.state.stacks[0].x,
+  fourthX: batchInitial[3][0],
+  selectionAfterRemove: play.state.selection.length,
+};
+
+// 7c. The noise support, as the renderers receive it. One switch now: support is drawn with the
+//     prediction and hidden with it.
+result.support = {
+  shear: world.supportShape(presets.shear),
+  stacked: world.supportShape(presets.stacked_deck),
+  rotation: world.supportShape(presets.rotation),
+  house: world.supportShape(presets.house_rules),
+};
+play.state.aimAssist = false;
+result.support.off = play.view(0).support;
+play.state.aimAssist = true;
+result.support.on = play.view(0).support;
+play.state.aimAssist = false;
+result.support.noAssist = play.view(0).support;
+play.state.aimAssist = true;
+play.selectTable('house_rules');
+result.support.houseView = play.view(0).support;
+play.selectTable('shear');
+play.state.aimAssist = false;
+
+// 7d. Auto-continue is a decision, not a timer: the shell drives it from the frame clock.
+play.restart(0);
+play.clearStacks();
+play.coverTable();
+play.deal(0);
+play.settle(game.THROW_MS);
+const settledAt = play.state.settledAt;
+const settleDue = (offset) => play.shouldAutoContinue(settledAt + offset);
+play.state.autoContinue = true;
+const dueBefore = settleDue(game.AUTO_CONTINUE_MS - 1);
+const dueAt = settleDue(game.AUTO_CONTINUE_MS);
+play.state.autoPlay = true;
+const suppressedByAutoPlay = settleDue(game.AUTO_CONTINUE_MS + 1);
+play.state.autoPlay = false;
+play.state.autoContinue = false;
+result.autoContinue = {
+  off: play.shouldAutoContinue(settledAt + game.AUTO_CONTINUE_MS),
+  dueBefore,
+  dueAt,
+  suppressedByAutoPlay,
+};
+
+// 7e. The tour is a pure, gated state machine: a step cannot be left until the table is in the
+//     state it asks for, and Back re-reads a step without touching the table.
+const freshTour = tutorial.createTutorial();
+const ctx = [
+  { prediction: true },
+  { prediction: true, stacks: 1 },
+  { prediction: true, stacks: 1, safe: true },
+  { prediction: true, stacks: 1, safe: true, heightChanged: true },
+  { prediction: true, stacks: 1, safe: true, heightChanged: true, deals: 1 },
+  { prediction: true, stacks: 1, safe: true, heightChanged: true, deals: 1, nextRounds: 1 },
+];
+const tourWalk = [];
+const readyAt = [];
+const blockedWithoutItsAction = [];
+let walk = freshTour;
+for (let i = 0; i < ctx.length; i += 1) {
+  tourWalk.push(tutorial.tutorialStep(walk).id);
+  readyAt.push(tutorial.tutorialReady(walk, ctx[i]));
+  // Every step refuses to advance on the previous step's context: the gate is its own action.
+  const earlier = i === 0 ? {} : ctx[i - 1];
+  blockedWithoutItsAction.push(tutorial.tutorialNext(walk, earlier).index === walk.index);
+  walk = tutorial.tutorialNext(walk, ctx[i]);
+}
+const gatedAtStart = tutorial.tutorialNext(freshTour, {}).index;
+const backToStart = tutorial.tutorialBack(tutorial.tutorialNext(freshTour, ctx[0]));
+const skippedTour = tutorial.tutorialSkip(walk);
+const reopenedTour = tutorial.tutorialReopen(skippedTour);
+const disabledTour = tutorial.tutorialSetEnabled(reopenedTour, false);
+// The bubble is pinned, not anchor-following: its corner is a pure function of the stage, the
+// dock and its own size, so it can be held here even though the page has no layout in node.
+const pinnedSpot = tutorial.tourSpot(
+  { left: 16, top: 105, width: 738, height: 594 },
+  { left: 29, top: 588, width: 712, height: 98 },
+  { width: 300, height: 120 }, 12);
+const crowdedSpot = tutorial.tourSpot(
+  { left: 0, top: 0, width: 400, height: 200 },
+  { left: 12, top: 100, width: 376, height: 88 },
+  { width: 280, height: 150 }, 12);
+result.tutorial = {
+  fresh: tutorial.tutorialStep(freshTour).id,
+  walk: tourWalk,
+  readyAt,
+  blockedWithoutItsAction,
+  gatedAtStart,
+  finished: tutorial.tutorialStep(walk),
+  backToStart: tutorial.tutorialStep(backToStart).id,
+  skipped: tutorial.tutorialStep(skippedTour),
+  reopened: tutorial.tutorialStep(reopenedTour).id,
+  disabled: tutorial.tutorialStep(disabledTour),
+  covers: [...new Set(tutorial.TOUR_STEPS.flatMap((step) => step.covers))].sort(),
+  pinned: pinnedSpot,
+  pinnedLeftGap: pinnedSpot.left - 16,
+  pinnedDockGap: 588 - (pinnedSpot.top + 120),
+  crowdedTop: crowdedSpot.top,
+};
+
+// 7f. The tallest reachable tower still fits the frame the empty table asks for -- the cap is a
+//     claim about the picture, so it is checked against the picture's own rule.
+result.heightBudget = Object.entries(presets).flatMap(([key, preset]) => preset.epsilons.map((eps) => {
+  const span = world.viewSpan(preset.x0, world.nominalNext(preset, preset.x0), eps);
+  const tower = world.TOWER_ROOM * world.stackHeight(world.WEIGHT_CEILING, world.discRadius(eps, span));
+  return { key, eps, span, tower, fits: tower <= span + 1e-9 };
+}));
 
 // 8. One cell, one stack. The bug this replaces was a tap on a stack putting a second one in the
 //    same place; the rule that fixes it is the one every mutation has to respect, so it is checked
@@ -582,6 +749,7 @@ play.placeStack([0, 0]);
 const lowSpan = play.view(0).span;
 play.setStackWeight(0, 30);
 const raised = play.view(0);
+const capped = Math.abs(play.state.stacks[0].w - world.WEIGHT_CEILING) < 1e-9;
 play.setStackWeight(0, 1);
 result.towerFrame = {
   room: world.TOWER_ROOM,
@@ -589,7 +757,9 @@ result.towerFrame = {
   withTower: tallFrame.span,
   centreUnmoved: tallFrame.centre[0] === flatFrame.centre[0]
     && tallFrame.centre[1] === flatFrame.centre[1],
-  grew: raised.span > lowSpan,
+  grewDirect: tallFrame.span > flatFrame.span,
+  capped,
+  fitsWithoutMoving: raised.span <= lowSpan + 1e-9,
   holdsTower: raised.span >= raised.stacks[0].height,
   cameBack: Math.abs(play.view(0).span - lowSpan) < 1e-9,
 };
@@ -726,13 +896,22 @@ const get = (id) => {
   return elements.get(id);
 };
 
+const documentListeners = new Map();
 globalThis.document = {
   body: { dataset: {}, classList: { add() {}, remove() {}, toggle() {} } },
   documentElement: { requestFullscreen: () => Promise.resolve() },
   fullscreenElement: null,
   getElementById: get,
   createElement: (tag) => element(tag),
-  addEventListener() {},
+  // The page listens on the document for the click that puts a stack down, and for the `?`
+  // popover. Both are real paths, so the shim keeps them and lets a test dispatch a click.
+  addEventListener(type, handler) {
+    if (!documentListeners.has(type)) documentListeners.set(type, []);
+    documentListeners.get(type).push(handler);
+  },
+};
+const pressDocument = (type, event = {}) => {
+  for (const handler of documentListeners.get(type) || []) handler(event);
 };
 globalThis.ResizeObserver = class ResizeObserver {
   constructor(callback) { this.callback = callback; }
@@ -802,6 +981,55 @@ result.matrixLines = get('tableMatrix').textContent.split('\n').length;
 result.badgeOnEmpty = get('badge').textContent;
 result.dealLabel = get('stageDeal').textContent;
 result.dealDisabled = get('stageDeal').disabled;
+result.dealAct = get('stageDeal').dataset.act;
+
+// The tour starts on every visit, and Skip is session-only; the guide's button brings it back.
+// A step is a gate in the shell as well as in the reducer: Next is disabled until the table is in
+// the state the step asks for, and Back goes to the previous step. The first step is the
+// prediction switch itself, so it is driven here through the same change event a player produces.
+result.tour = {
+  visibleAtBoot: get('tour').hidden === false,
+  firstText: get('tourText').textContent,
+  step: get('tourStep').textContent,
+  teaching: get('teaching').checked,
+  nextDisabledAtBoot: get('tourNext').disabled === true,
+  backDisabledAtBoot: get('tourBack').disabled === true,
+};
+get('aimAssist').checked = true;
+get('aimAssist').press('change', { target: get('aimAssist') });
+result.tour.nextAfterPrediction = get('tourNext').disabled === false;
+get('tourNext').press('click');
+result.tour.stepAfterNext = get('tourStep').textContent;
+result.tour.backEnabled = get('tourBack').disabled === false;
+get('tourBack').press('click');
+result.tour.stepAfterBack = get('tourStep').textContent;
+get('aimAssist').checked = false;            // back to the page's default for the checks below
+get('aimAssist').press('change', { target: get('aimAssist') });
+get('tourSkip').press('click');
+result.tour.hintAfterSkip = get('emptyBet').hidden;
+result.tour.hiddenAfterSkip = get('tour').hidden;
+result.tour.teachingAfterSkip = get('teaching').checked;
+get('guideTour').press('click');
+runFrames(1);
+result.tour.visibleAfterReopen = get('tour').hidden === false;
+result.tour.teachingAfterReopen = get('teaching').checked;
+// Turning teaching off with the switch -- not just Skip -- also silences the static hint.
+get('teaching').checked = false;
+get('teaching').press('change', { target: get('teaching') });
+result.tour.hintAfterTeachingOff = get('emptyBet').hidden;
+
+// The support is one switch with the prediction: drawn while it is on, gone when it is off.
+result.supportToggle = { offAtBoot: game.view(performance.now()).support };
+get('aimAssist').checked = true;
+get('aimAssist').press('change', { target: get('aimAssist') });
+result.supportToggle.on = game.view(performance.now()).support;
+get('aimAssist').checked = false;
+get('aimAssist').press('change', { target: get('aimAssist') });
+result.supportToggle.offAgain = game.view(performance.now()).support;
+// The preset layouts are built around the prediction, so the round below needs it back on --
+// exactly what the page does when the player turns it on for a round.
+get('aimAssist').checked = true;
+get('aimAssist').press('change', { target: get('aimAssist') });
 
 // A round, played through the page's own buttons -- and through the *stage's* buttons only: the
 // point of the dock is that a player never has to open the panel to play on.
@@ -822,12 +1050,17 @@ result.lastRoi = get('lastRoi').textContent;
 result.meanUtility = get('meanUtility').textContent;
 result.par = get('par').textContent;
 result.announcement = get('announcement').textContent;
+result.dealActSettled = get('stageDeal').dataset.act;
+result.stagePhase = get('stage').dataset.phase;
 
 get('stageDeal').press('click');  // "Next round"
-get('coverTable').press('click');
+// `keepLayout` starts on, so the hand comes back by itself; pressing Cover on top of it would
+// toggle the held layout back off. Fill only a table that is actually empty.
+if (game.state.stacks.length === 0) get('coverTable').press('click');
 runFrames(3);
 result.rounds = game.state.rounds.length;
 result.step = game.state.step;
+result.keepLayoutAtStart = get('keepLayout').checked;
 
 // The panel folds away and the table takes the window. Read back off the body, which is what the
 // stylesheet reads too -- no second copy of the state to fall out of step.
@@ -847,25 +1080,58 @@ const tapAt = (x, y, pointerId = 11) => {
   get('stage').press('pointerdown', event);
   get('stage').press('pointerup', event);
 };
-get('clear').press('click');
+get('clear').press('click');   // first press arms...
+result.clearArmed = get('clearLabel').textContent;
+get('clear').press('click');   // ...second press clears
 runFrames(40);               // let the view settle, so the stage centre means one place
 tapAt(300, 200);
 runFrames(40);
 result.tapOnce = game.state.stacks.length;
 tapAt(300, 200);
 runFrames(2);
-result.tapTwice = { stacks: game.state.stacks.length, selected: game.state.selected };
+result.tapTwice = { stacks: game.state.stacks.length, selection: game.state.selection };
 tapAt(300, 200);             // and a third tap lets it go again
 runFrames(2);
-result.tapThrice = { stacks: game.state.stacks.length, selected: game.state.selected };
+result.tapThrice = { stacks: game.state.stacks.length, selection: game.state.selection };
 result.toolbarAfterThird = get('stackTools').hidden;
 
-// The cursor asks what a click would hit, before it clicks.
+// With something selected, a tap on bare felt is the player putting the toolbar down -- not a
+// request for another stack under the hand.
+tapAt(300, 200);
+runFrames(2);
+result.dismissTap = { before: game.state.selection.slice(), stacks: game.state.stacks.length };
+tapAt(150, 300);
+runFrames(2);
+result.dismissTap.afterStacks = game.state.stacks.length;
+result.dismissTap.afterSelection = game.state.selection.slice();
+tapAt(150, 300);
+runFrames(2);
+result.dismissTap.placedNext = game.state.stacks.length === 2;
+
+// A click on a control (not the toolbar) both does the control's job and lets go of the stack.
+tapAt(150, 300);            // select it (it is already there, so this is a select)
+runFrames(2);
+pressDocument('click', { target: { tagName: 'BUTTON', id: 'snap' } });
+result.dismissFromControl = { selection: game.state.selection.slice() };
+
+// The cursor asks what a click would hit, before it clicks. Put one stack back on the centre so
+// the question has a stable answer (the two stacks above moved the frame's centre).
+get('clear').press('click');
+get('clear').press('click');
+runFrames(40);
+tapAt(300, 200);
+runFrames(40);
 get('stage').press('pointermove', { target: { tagName: 'CANVAS' }, clientX: 300, clientY: 200,
                                     pointerId: 12, pointerType: 'mouse' });
 result.hover = { index: game.state.hover, cursor: get('stage').style.cursor };
 get('stage').press('pointerleave', {});
 result.hoverAfterLeave = game.state.hover;
+// Pointer capture retargets the click after a canvas gesture to the stage itself; that click is
+// still the table, and must not clear a selection the gesture just made.
+tapAt(300, 200);
+runFrames(2);
+pressDocument('click', { target: get('stage') });
+result.stageClickKeepsSelection = game.state.selection.slice();
 
 // The two ways out, through the buttons, in a document that has no downloads and no clipboard.
 get('copyRound').press('click');
@@ -873,10 +1139,29 @@ get('exportRun').press('click');
 result.exportStatus = get('exportStatus').textContent;
 
 // The guide: openable from the table, closable again, and it does not need the run to be idle.
-get('helpOpen').press('click');
+get('help').press('click');
 result.guideOpened = get('guide').hidden === false;
 get('guideClose').press('click');
 result.guideClosed = get('guide').hidden === true;
+
+// Auto-continue, through the page's own clock: settle a safe round, then let the frame loop run
+// past the delay. The hand comes back by itself (keep-layout is on), and the next round is a new
+// bet, not a deal.
+game.restart(performance.now());
+game.coverTable();
+get('autoContinue').checked = true;
+get('autoContinue').press('change', { target: get('autoContinue') });
+get('stageDeal').press('click');
+runFrames(30, 40);
+const autoSettled = { step: game.state.step, phase: game.state.phase };
+runFrames(40, 40);
+result.autoContinued = {
+  settled: autoSettled,
+  step: game.state.step,
+  phase: game.state.phase,
+};
+get('autoContinue').checked = false;
+get('autoContinue').press('change', { target: get('autoContinue') });
 
 console.warn = realWarn;
 result.warnings = warnings;
@@ -942,6 +1227,20 @@ def test_the_page_declares_no_id_the_script_never_mentions():
     assert unwired == [], (
         f'index.html declares ids no script mentions: {unwired}. Wire them, drop them, or add '
         'them to LAYOUT_ONLY_IDS with a reason.')
+
+
+def test_the_game_saves_nothing_between_visits():
+    """The tour, the switches, the table and the panel width are session-only.
+
+    The page says so in its own text, and `localStorage` would be the quiet way to break that
+    promise: the tutorial's "first visit" flag is the obvious temptation. A reader's browser
+    storage belongs to the sites they trust; this page is not collecting any.
+    """
+    sources = [(GAME / name).read_text(encoding='utf-8') for name in PURE_MODULES + (RENDERER,)]
+    sources.append((GAME / 'index.html').read_text(encoding='utf-8'))
+    for source in sources:
+        assert 'localStorage' not in source, 'the game page writes browser storage'
+        assert 'sessionStorage' not in source, 'the game page writes session storage'
 
 
 def test_the_page_boots_and_fills_its_panels(boot_run):
@@ -1029,10 +1328,20 @@ def test_a_tap_on_a_stack_does_not_place_a_second_one(boot_run):
     """
     assert boot_run['tapOnce'] == 1, 'the first tap should have placed a stack'
     assert boot_run['tapTwice']['stacks'] == 1, 'the second tap placed a stack under the first'
-    assert boot_run['tapTwice']['selected'] == 0, 'the second tap should have held the stack'
+    assert boot_run['tapTwice']['selection'] == [0], 'the second tap should have held the stack'
     assert boot_run['tapThrice']['stacks'] == 1
-    assert boot_run['tapThrice']['selected'] is None, 'a third tap should have let it go'
+    assert boot_run['tapThrice']['selection'] == [], 'a third tap should have let it go'
     assert boot_run['toolbarAfterThird'] is True, 'and taken the toolbar with it'
+    dismiss = boot_run['dismissTap']
+    assert dismiss['before'] == [0]
+    assert dismiss['afterStacks'] == dismiss['stacks'], (
+        'a tap on bare felt placed a stack while it was closing the toolbar')
+    assert dismiss['afterSelection'] == []
+    assert dismiss['placedNext'] is True, 'the next tap should place again'
+    assert boot_run['dismissFromControl']['selection'] == [], (
+        'a click on a control left the toolbar up')
+    assert boot_run['stageClickKeepsSelection'] == [0], (
+        'the click that follows a canvas gesture cleared the selection it just made')
 
 
 def test_the_cursor_shows_what_a_click_would_do(boot_run):
@@ -1050,6 +1359,64 @@ def test_the_panel_folds_away(boot_run):
     assert boot_run['sideHidden'] == 'hidden'
     assert boot_run['sideLabel'] == 'Show panel'
     assert boot_run['sideBack'] == 'shown'
+
+
+def test_clear_takes_two_presses(boot_run):
+    """There is no undo any more, so the one control that empties the table asks first."""
+    assert 'Sure?' in boot_run['clearArmed'], 'the first press cleared without asking'
+
+
+def test_keep_my_layout_starts_on(boot_run):
+    """A hand is meant to be a rule you can score twice; the switch starts where the game does."""
+    assert boot_run['keepLayoutAtStart'] is True
+
+
+def test_the_deal_button_says_what_it_will_do(boot_run):
+    """The icon follows the phase, and the settled button is the one that asks for a press."""
+    assert boot_run['dealAct'] == 'deal'
+    assert boot_run['dealActSettled'] == 'next'
+    assert boot_run['stagePhase'] == 'settled'
+
+
+def test_the_tour_starts_on_and_skip_is_session_only(boot_run):
+    """Every visit starts the tour; Skip lasts until the tab closes; the guide can reopen it."""
+    tour = boot_run['tour']
+    assert tour['visibleAtBoot'] is True
+    assert tour['step'] == '1 / 6'
+    assert tour['teaching'] is True
+    # The shell wires the gate: Next is dead until the step's action is on the table, and Back is
+    # dead on the first step.
+    assert tour['nextDisabledAtBoot'] is True
+    assert tour['backDisabledAtBoot'] is True
+    assert tour['nextAfterPrediction'] is True, 'Next stayed disabled after prediction was turned on'
+    assert tour['stepAfterNext'] == '2 / 6'
+    assert tour['backEnabled'] is True, 'Back is disabled after the first step'
+    assert tour['stepAfterBack'] == '1 / 6'
+    assert tour['hiddenAfterSkip'] is True
+    assert tour['teachingAfterSkip'] is False
+    # A player who pressed Skip asked not to be talked at; the static "Place your stacks" hint
+    # stays away for the visit instead of reappearing in the tour's place.
+    assert tour['hintAfterSkip'] is True, 'the empty-table hint came back after Skip'
+    assert tour['visibleAfterReopen'] is True
+    assert tour['teachingAfterReopen'] is True
+    assert tour['hintAfterTeachingOff'] is True, (
+        'the empty-table hint came back when teaching was turned off')
+
+
+def test_the_support_is_drawn_with_the_prediction(boot_run):
+    """One switch, two drawings: the support rises and falls with the prediction it is drawn around."""
+    support = boot_run['supportToggle']
+    assert support['offAtBoot'] is None
+    assert support['on'] is not None and support['on']['kind'] == 'box'
+    assert support['offAgain'] is None
+
+
+def test_auto_continue_advances_a_settled_round(boot_run):
+    """The clock lives in the frame loop, so the page can be asked whether it moved on."""
+    auto = boot_run['autoContinued']
+    assert auto['settled']['phase'] == 'settled'
+    assert auto['step'] == auto['settled']['step'] + 1
+    assert auto['phase'] == 'bet'
 
 
 def test_the_three_d_renderer_keeps_its_lines_from_being_culled():
@@ -1096,17 +1463,21 @@ def test_every_control_that_is_not_carry_on_explains_itself():
 
     A page whose rules are a paragraph in a side panel is a page you have to leave in order to read,
     and that is what the panel's hints were. So every control on the table that is not simply
-    "carry on" carries a `?` in its corner and the sentence behind it -- and the two that do only
-    carry on (Deal, Restart) do not, because a `?` on the obvious is noise.
+    "carry on" carries a `?` in its corner and the sentence behind it -- and the one that only
+    carries on (Deal) does not, because a `?` on the obvious is noise. Restart is not on the table
+    any more; it lives in the panel with a hint that says what it drops.
 
     Checked in the markup rather than in the browser: the popover needs a real document, and what
     can go wrong here is a control that was added without its explanation.
     """
     html = (GAME / 'index.html').read_text(encoding='utf-8')
 
-    helped = re.findall(r'<button[^>]*class="helped"[^>]*>(.*?)</button>', html, re.S)
-    assert len(helped) == 8, 'the hand buttons, the two edit buttons and the way out'
-    for inner in helped:
+    helped = re.findall(r'(<button[^>]*class="helped"[^>]*>)(.*?)</button>', html, re.S)
+    names = set()
+    for opening, inner in helped:
+        found = re.search(r'id="([^"]+)"', opening)
+        assert found, 'a helped button has no id to name it'
+        names.add(found.group(1))
         assert 'class="q"' in inner, f'a helped button has no ? badge: {inner[:40]}'
         badge = re.search(r'<i class="q"([^>]*)>', inner).group(1)
         if 'id=' in badge:
@@ -1116,15 +1487,19 @@ def test_every_control_that_is_not_carry_on_explains_itself():
             continue
         text = re.search(r'data-help="([^"]*)"', inner)
         assert text and len(text.group(1)) > 40, f'the ? badge has nothing to say: {inner[:40]}'
+    assert names == {'coverTable', 'evenGrid', 'sameAsLast', 'selectMode', 'clear',
+                     'sumExport', 'copyRound', 'exportRun'}, f'the helped set is {names}'
 
-    options = re.findall(r'<label class="opt">(.*?)</label>', html, re.S)
+    options = re.findall(r'<label class="opt"[^>]*>(.*?)</label>', html, re.S)
     assert len(options) == 5, 'the five round options are pills with a ? each'
     for inner in options:
         assert 'class="q"' in inner and 'data-help="' in inner
+    # Snap is a placement setting, not a round switch; it explains itself in the panel.
+    snap = re.search(r'<label class="teachOpt">(.*?id="snap".*?)</label>', html, re.S)
+    assert snap and 'class="q"' in snap.group(1) and 'data-help="' in snap.group(1)
 
-    for basic in ('stageDeal', 'stageRestart'):
-        button = re.search(r'<button[^>]*id="%s"[^>]*>(.*?)</button>' % basic, html, re.S)
-        assert button and 'class="q"' not in button.group(1), f'{basic} does not need a ? badge'
+    button = re.search(r'<button[^>]*id="stageDeal"[^>]*>(.*?)</button>', html, re.S)
+    assert button and 'class="q"' not in button.group(1), 'stageDeal does not need a ? badge'
 
     assert '<div id="helpPop"' in html, 'there is nowhere to show the explanation'
     # The score is the one number on the table that is not self-evident, so it is named and explained.
@@ -1147,25 +1522,37 @@ def test_the_panel_is_three_folded_rows_and_the_options_are_on_the_table():
 
 
 def test_the_options_are_grouped_by_what_they_do():
-    """Five switches in a row is a wall you have to read to find the one you want. They are three
-    groups, one per row, each named on its left -- what you see, how a stack lands, and what runs
-    itself. Checked in the markup: the grouping is the labels and the rows, and what can go wrong
-    here is a switch quietly moved to a group that does not describe it, which no run can see.
+    """Six switches in a row is still a wall, so the table keeps the two that describe the round:
+    what you see and what runs itself. Placement (snap) and the preset layouts live in the panel,
+    where settings belong. Checked in the markup: a switch quietly moved to a group that does not
+    describe it is something no run can see.
     """
     html = (GAME / 'index.html').read_text(encoding='utf-8')
     rows = re.findall(r'<div class="optRow">(.*?)</div>', html, re.S)
-    assert len(rows) == 3, f'the switches are three groups, found {len(rows)}'
+    assert len(rows) == 2, f'the table switches are two groups, found {len(rows)}'
     names = [re.search(r'<span class="rowLabel">([^<]*)</span>', row).group(1) for row in rows]
-    assert names == ['see', 'place', 'auto'], f'the groups are named {names}'
-    inside = [[i for i in ('aimAssist', 'showHistory', 'snap', 'keepLayout', 'autoPlay')
+    assert names == ['see', 'auto'], f'the groups are named {names}'
+    inside = [[i for i in ('aimAssist', 'showHistory', 'keepLayout',
+                           'autoPlay', 'autoContinue')
                if f'id="{i}"' in row] for row in rows]
-    assert inside == [['aimAssist', 'showHistory'], ['snap'], ['keepLayout', 'autoPlay']], (
+    assert inside == [['aimAssist', 'showHistory'],
+                      ['keepLayout', 'autoPlay', 'autoContinue']], (
         f'the switches are grouped as {inside}')
-    # The bottom of the table is grouped the same way, with the same kind of label.
+    # The bottom of the table is the two edit/run groups; the preset layouts are in the panel.
     dock = html[html.index('class="dockRight"'):]
     assert [re.search(r'<span class="rowLabel">([^<]*)</span>', row).group(1)
             for row in re.findall(r'<div class="btnRow">(.*?)</div>', dock, re.S)] == [
-                'hands', 'edit', 'run']
+                'edit', 'run']
+    panel = html[html.index('id="panelTable"'):html.index('id="panelData"')]
+    assert 'Preset predictors' in panel
+    for key in ('coverTable', 'evenGrid', 'sameAsLast'):
+        assert f'id="{key}"' in panel, f'{key} is not in the settings panel'
+    assert 'id="snap"' in panel, 'snap is not in the settings panel'
+    # Teaching belongs with the window controls, and the duplicated floating "?" is gone: the
+    # guide's link is in the header (and the empty-table hint), which is always reachable.
+    actions = re.search(r'<div class="actions">(.*?)</div>', html, re.S).group(1)
+    assert 'id="teaching"' in actions, 'the teaching switch is not beside Hide panel'
+    assert 'id="helpOpen"' not in html, 'the floating ? came back next to the always-present link'
 
 
 def test_the_three_d_renderer_cannot_lose_the_prediction_marker():
@@ -1286,11 +1673,107 @@ def test_a_round_that_pays_nothing_ends_the_run(node_run):
     assert miss['roi'] == 0
 
 
-def test_a_dragged_stack_can_be_undone(node_run):
-    """One gesture, one undo step -- a drag that needs fifty undos is a drag nobody can fix."""
-    drag = node_run['dragUndo']
+def test_a_dragged_stack_stays_where_you_drop_it(node_run):
+    """Undo is gone: a drag is a move, and the stack stays where the hand left it."""
+    drag = node_run['drag']
     assert drag['moved'] is True
-    assert drag['restored'] is True
+    assert drag['persists'] is True, 'the stack moved back on its own; there is no undo any more'
+
+
+def test_a_tap_on_bare_felt_only_closes_a_selection(node_run):
+    """The tap that closes the toolbar must not also put a stack under the hand.
+
+    This is the difference between "I am done with this stack" and "I want another one here" --
+    and the player has already said which by selecting something first.
+    """
+    dismiss = node_run['dismiss']
+    assert dismiss['selectedBefore'] == 1
+    assert dismiss['placed'] is False
+    assert dismiss['dismissed'] is True
+    assert dismiss['stacksAfterFirst'] == 1, 'the tap placed a stack while closing the toolbar'
+    assert dismiss['selectionAfterFirst'] == 0
+    assert dismiss['secondPlacement'] is True, 'the next tap should place again'
+    assert dismiss['stacksAfterSecond'] == 2
+
+
+def test_a_selection_is_a_group(node_run):
+    """One weight, one step, one move: and a move that would land on somebody else moves nothing."""
+    batch = node_run['batch']
+    assert batch['selected'] == [0, 1, 2]
+    assert batch['weights'] == [2, 2, 2, 1], 'the unselected stack changed weight'
+    assert batch['nudged'] == [4, 4, 4, 1]
+    assert batch['moved'] is True
+    assert batch['movedTogether'] is True, f'the group did not keep its shape: {batch}'
+    assert batch['blocked'] is False, 'a move into an occupied cell was allowed'
+    assert batch['unchangedAfterBlock'] is True, 'a refused group move moved half the group'
+    assert batch['removed'] is True
+    assert batch['remaining'] == 1
+    assert batch['remainingX'] == pytest.approx(batch['fourthX'])
+    assert batch['selectionAfterRemove'] == 0
+
+
+def test_the_noise_support_is_what_each_law_publishes(node_run):
+    """The overlay is a picture of the exported law, and a table that keeps its law has no picture.
+
+    The Gaussian has no support at all, so the page draws a chosen 3σ window and says so; drawing
+    it with the prediction hidden would hand back the point the prediction switch hides.
+    """
+    support = node_run['support']
+    assert support['shear']['kind'] == 'box'
+    assert support['shear']['low'] == [-1, -1] and support['shear']['high'] == [1, 1]
+    assert support['stacked']['kind'] == 'bands'
+    assert [band['weight'] for band in support['stacked']['bands']] == [0.1, 0.8, 0.1]
+    assert support['rotation']['kind'] == 'ellipse'
+    assert support['rotation']['rx'] == pytest.approx(1.5)
+    assert support['rotation']['ry'] == pytest.approx(1.5)
+    assert support['house'] is None
+    assert support['houseView'] is None, 'a table that keeps its law drew a support window'
+    assert support['off'] is None
+    assert support['on']['kind'] == 'box'
+    assert support['noAssist'] is None, 'the support disclosed the prediction with the assist off'
+
+
+def test_auto_continue_is_a_decision_not_a_timer(node_run):
+    """The shell drives the clock; this only says whether the clock has arrived."""
+    auto = node_run['autoContinue']
+    assert auto['off'] is False
+    assert auto['dueBefore'] is False
+    assert auto['dueAt'] is True
+    assert auto['suppressedByAutoPlay'] is False, 'auto-play and auto-continue double-stepped'
+
+
+def test_the_tour_starts_on_is_gated_and_can_be_reopened(node_run):
+    """Session-only teaching: start on, every step waits for its own action, back, skip, re-open."""
+    tour = node_run['tutorial']
+    assert tour['fresh'] == 'prediction'
+    assert tour['walk'] == ['prediction', 'place', 'cover', 'height', 'deal', 'next']
+    # Each step is ready only when its own action is on the table; the step before it is not
+    # enough, which is what makes "Next" a verdict rather than a click.
+    assert tour['readyAt'] == [True] * 6
+    assert tour['blockedWithoutItsAction'] == [True] * 6
+    assert tour['gatedAtStart'] == 0, 'Next moved on before prediction was on'
+    assert tour['finished'] is None
+    assert tour['backToStart'] == 'prediction', 'Back did not return to the previous step'
+    assert tour['skipped'] is None
+    assert tour['reopened'] == 'prediction'
+    assert tour['disabled'] is None
+    # Pinned to the table's lower-left corner, above the dock: it is a corner card now, not a
+    # coach mark that follows the thing each step describes.
+    assert tour['pinned'] == {'left': 28, 'top': 456}
+    assert tour['pinnedLeftGap'] == 12 and tour['pinnedDockGap'] == 12
+    assert tour['crowdedTop'] == 12, 'a short table pushed the card off the felt'
+    covered = set(tour['covers'])
+    assert {'tap', 'place', 'drag-stack', 'orbit', 'wheel', 'pinch', 'support', 'cover', 'safe',
+            'select-stack', 'height', 'toolbar', 'deal', 'result', 'next-round',
+            'keep-layout'} <= covered
+
+
+def test_the_tallest_height_fits_the_frame(node_run):
+    """The cap is a promise about the picture, checked against the frame's own rule."""
+    budget = node_run['heightBudget']
+    assert len(budget) == 15
+    failed = [item for item in budget if not item['fits']]
+    assert failed == [], f'the tallest tower overflows the frame: {failed}'
 
 
 def test_two_stacks_never_share_a_cell(node_run):
@@ -1405,22 +1888,24 @@ def test_the_cursor_is_answered_by_the_view_model(node_run):
     assert hover['clampedAway'] is None, 'a hover outlived the stack it pointed at'
 
 
-def test_the_height_is_continuous_and_the_shares_follow_it(node_run):
+def test_the_height_has_a_reachable_ceiling_and_the_shares_follow_it(node_run):
     """A weight is a height, its size means nothing, and every share on the table is that weight
     over the total -- computed where it is shown, so nothing can store a share and fall out of
     step with the geometry.
 
-    There is no top to reach. A ceiling on a weight was a ceiling on nothing -- only the ratio
-    between stacks is observable -- and hitting it is what made the height control feel broken. So
-    the slider's coordinate is the *logarithm* of the weight: dragging right keeps multiplying, and
-    the one clamp left is the bottom, which is what keeps a slider from deleting what it slides.
+    The ceiling is a **comfort** decision, not a claim about weights: only the ratio between stacks
+    is observable, but a tower 300 times a fresh stack turns the table into a grid, and a
+    mis-touch on the way to closing the toolbar used to be able to do it. The slider stays
+    logarithmic; it just stops at a height a person can read.
     """
     weights = node_run['weights']
     assert weights['sharesSum'] == pytest.approx(1.0)
     assert weights['shareFollowsHeight'] is True, 'a taller stack must be a bigger share'
-    assert weights['keptHigh'] == pytest.approx(99), 'a weight was capped on the way in'
+    assert weights['ceiling'] == pytest.approx(8)
+    assert weights['keptHigh'] == pytest.approx(weights['ceiling']), 'the cap is not reachable'
     assert weights['clampedLow'] == pytest.approx(weights['min'])
-    assert weights['nudged'] == pytest.approx(1.25)
+    assert weights['min'] == pytest.approx(0.1)
+    assert weights['nudged'] == pytest.approx(1.12)
     assert weights['sliderRoundTrip'] is True, 'the slider does not read back what it wrote'
     # A tower is its own weight and nothing else: raising one stack never moves another, which is
     # what a hand-wide normaliser could not promise.
@@ -1445,14 +1930,20 @@ def test_a_landing_keeps_the_ball_that_made_it(node_run):
 
 
 def test_the_camera_makes_room_for_a_tower(node_run):
-    """A weight is a height and a weight has no ceiling, so a stack the player makes tall has to
-    stay in the picture somehow. The frame is what backs off -- and it has to come back in when the
-    stack comes down, or the table would shrink once and stay shrunk."""
+    """A height the player makes has to stay in the picture.
+
+    With a reachable cap the camera no longer *has* to move for the tallest tower -- the cap is
+    chosen so it fits the frame the empty table already asks for -- but `frameBox` must still honor
+    a tower that does exceed the frame (the direct 12-unit case), never move the centre to do it,
+    and come back in when the tower goes down.
+    """
     frame = node_run['towerFrame']
     assert frame['withTower'] > frame['floor'], 'a tall stack did not push the camera back'
     assert frame['withTower'] >= 12 * frame['room'], 'the frame does not cover the tower'
     assert frame['centreUnmoved'] is True, 'making room moved the table'
-    assert frame['grew'] is True, 'raising a stack past the frame changed no frame'
+    assert frame['grewDirect'] is True, 'the direct tower case changed no frame'
+    assert frame['capped'] is True, 'the height control has no reachable ceiling'
+    assert frame['fitsWithoutMoving'] is True, 'the cap is taller than the frame it promised to fit'
     assert frame['holdsTower'] is True, 'the tower is taller than the view that is meant to hold it'
     assert frame['cameBack'] is True, 'the frame never came back in'
 

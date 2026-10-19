@@ -34,8 +34,11 @@
 }
 
 /* Pictures sit at the top of their cells. Aligned at the top a row reads as a row; centred, small
- * differences in height become a wobble along the middle of the row. */
+ * differences in height become a wobble along the middle of the row. The header cells get the same
+ * rule: their two lines (the label and the one-line description) line up across all four columns. */
+#get-started + table th,
 #get-started + table td,
+#get-started + div table th,
 #get-started + div table td {
   vertical-align: top;
 }

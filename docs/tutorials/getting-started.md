@@ -19,6 +19,8 @@ but one precondition is worth stating before anything else.
 pip install ppsds
 ```
 
+`0.0.3-alpha` is a pre-release: pin it with `pip install ppsds==0.0.3a0`, or pass `--pre`.
+
 To run the examples in this repository, install from a checkout instead, so the editable `ppsds`
 resolves to the tree you are reading:
 

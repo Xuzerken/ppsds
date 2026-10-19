@@ -82,6 +82,9 @@ export function createFlatScene(canvas) {
     ctx.clearRect(0, 0, width, height);
     drawFelt(ctx, width, height, felt);
     drawGrid(ctx, width, height, span);
+    // The fill sits under the hand; its boundary is drawn again after the stacks, so a stack can
+    // hide the tint but never the edge.
+    if (view.support) drawSupport(ctx, view.support, toPixel, scale, false);
 
     if (view.history.show) drawHistory(ctx, view, toPixel, Math.min(width, height));
 
@@ -117,6 +120,8 @@ export function createFlatScene(canvas) {
       drawStack(ctx, stack, toPixel(stack.at), view.settleT, geom);
     }
     ctx.globalAlpha = 1;
+    // Boundary over the hand, fill under it: the same split as the 3-D table.
+    if (view.support) drawSupport(ctx, view.support, toPixel, scale, true);
     if (view.nominalPath) drawNominalPath(ctx, view.nominalPath, toPixel, view.span, Math.min(width, height));
     if (view.predicted) drawPrediction(ctx, toPixel(view.predicted), width);
     // The one solid thing on the felt, at every moment: where it landed, or in the air on the way.
@@ -200,6 +205,53 @@ function drawGrid(ctx, width, height, span) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
   }
+}
+
+/**
+ * The noise's support, in the noise frame (around `view.support.anchor`).
+ *
+ * A block law's fill alpha is the band's weight -- that is what the bands are for. The Gaussian
+ * ellipse is a chosen 3σ window, not a support; the caption outside the canvas says so. The
+ * renderer draws exactly what the view model handed it, including `null` for a table that keeps
+ * its law.
+ */
+function drawSupport(ctx, support, toPixel, scale, edgesOnly) {
+  const anchor = support.anchor;
+  ctx.save();
+  ctx.lineWidth = Math.max(1, 1.3);
+  ctx.strokeStyle = PALETTE.supportEdge;
+  if (support.kind === 'ellipse') {
+    if (!edgesOnly) { ctx.restore(); return; }
+    const [x, y] = toPixel([anchor[0] + support.centre[0], anchor[1] + support.centre[1]]);
+    ctx.globalAlpha = 0.55;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.ellipse(x, y, support.rx * scale, support.ry * scale, 0, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  const boxes = support.kind === 'box'
+    ? [{ low: support.low, high: support.high, weight: 1 }]
+    : support.bands;
+  for (const box of boxes) {
+    const [x0, y0] = toPixel([anchor[0] + box.low[0], anchor[1] + box.low[1]]);
+    const [x1, y1] = toPixel([anchor[0] + box.high[0], anchor[1] + box.high[1]]);
+    const left = Math.min(x0, x1);
+    const top = Math.min(y0, y1);
+    const width = Math.abs(x1 - x0);
+    const height = Math.abs(y1 - y0);
+    if (edgesOnly) {
+      ctx.globalAlpha = 0.5;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(left, top, width, height);
+    } else {
+      ctx.globalAlpha = 0.06 + 0.14 * box.weight;
+      ctx.fillStyle = PALETTE.support;
+      ctx.fillRect(left, top, width, height);
+    }
+  }
+  ctx.restore();
 }
 
 /** One "→": two strokes meeting at the tip, drawn at `angle` radians in screen space.

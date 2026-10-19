@@ -399,7 +399,8 @@ whether a run completed.
 
 ## Known rough edges in this release
 
-Honest limits, as of `0.0.2`, so you do not spend an afternoon rediscovering them.
+Honest limits, as of `0.0.3-alpha` (`0.0.3a0`), so you do not spend an afternoon rediscovering
+them.
 
 ### The full-trajectory prediction helper is deprecated, and its replacement is incomplete
 

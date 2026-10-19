@@ -339,10 +339,10 @@ def _coverage_case(preset, eps, atoms, weights, layout, window):
 def _drift_case(preset):
     """Where the table's own drift takes the puck -- the path the page draws.
 
-    The start is deliberately **not** ``x0``: the shear table's ``x0`` is the origin, which is a
-    fixed point of its drift, so a golden path from there would be all zeros and would pass for
-    any matrix at all. Offsetting by a fixed amount keeps the walk in the informative part of
-    every table's motion.
+    The start is deliberately **not** ``x0``: any single start can be a poor probe (the origin is
+    a fixed point of the shear, for instance), so a golden path from one point would say less than
+    it appears to about the matrix. Offsetting by a fixed amount keeps the walk in the informative
+    part of every table's motion.
     """
     start = np.asarray(preset.x0, dtype=float) + np.array([0.7, 0.4])
     path = [start]

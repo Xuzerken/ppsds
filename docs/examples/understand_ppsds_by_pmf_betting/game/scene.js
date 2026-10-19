@@ -135,6 +135,20 @@ export async function createTableScene(container) {
   const aimMaterial = new THREE.LineBasicMaterial({
     color: 0xf5c451, transparent: true, opacity: 0.55, depthWrite: false,
   });
+  // The support is drawn under the hand and above the felt, in the prediction marker's gold at a
+  // low opacity: it is the same reading as the marker, at the scale of the law. Per-slab materials
+  // because a block law has one opacity per band, and the alpha is the weight -- that is the
+  // information the bands carry. The Gaussian's window is a thin ring; WebGL has no dashed line
+  // width worth having.
+  const supportSlabMaterial = () => new THREE.MeshBasicMaterial({
+    color: 0xf5c451, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide,
+  });
+  const supportEdgeMaterial = () => new THREE.LineBasicMaterial({
+    color: 0xf5c451, transparent: true, opacity: 0.5, depthWrite: false,
+    // The boundary is drawn over the hand: a support whose edge disappears under a stack answers
+    // "where does the law reach?" with "not here", which is the one thing it must not say.
+    depthTest: false,
+  });
 
   /** A pool of identical objects: created once, then shown or hidden as the frame needs them. */
   const pool = (make, parent) => {
@@ -157,16 +171,38 @@ export async function createTableScene(container) {
   // trail of landings is legible as the trail of the thing the puck follows. It was a small dot,
   // which is neither the ball's size nor its shape, and read as a mark of some other kind.
   const landings = pool(() => new THREE.Mesh(sphereGeometry, landingMaterial()), scene);
+  // The noise's support: one slab and one outline per box/band, and one thin ring for a Gaussian's
+  // chosen window. Drawn before the ε squares so the hand always reads on top of the law.
+  const supportSlabs = pool(() => new THREE.Mesh(slabGeometry, supportSlabMaterial()), scene);
+  const supportEdges = pool(() => {
+    const object = new THREE.LineSegments(outlineGeometry, supportEdgeMaterial());
+    object.renderOrder = 11; // above the discs, below the prediction marker (12)
+    return object;
+  }, scene);
+  const supportEllipse = new THREE.Mesh(
+    new THREE.RingGeometry(0.968, 1, 96),
+    new THREE.MeshBasicMaterial({ color: 0xf5c451, transparent: true, opacity: 0.55,
+      depthWrite: false, depthTest: false, side: THREE.DoubleSide }),
+  );
+  supportEllipse.rotation.x = -Math.PI / 2;
+  supportEllipse.renderOrder = 11;
+  supportEllipse.visible = false;
+  scene.add(supportEllipse);
   const discs = [];
   const leftDiscs = [];
   const ball = new THREE.Mesh(sphereGeometry, ballMaterial);
-  const selectionRing = new THREE.Mesh(
-    new THREE.RingGeometry(0.82, 1, 40),
-    new THREE.MeshBasicMaterial({ color: 0xf6f9ff, transparent: true, opacity: 0.85,
-      depthWrite: false, side: THREE.DoubleSide }),
-  );
-  selectionRing.rotation.x = -Math.PI / 2;
-  scene.add(selectionRing);
+  // One ring per selected stack, from a pool: a group is selected as often as a single stack, and
+  // a single mesh would silently mark only one of them.
+  const selectionMaterial = new THREE.MeshBasicMaterial({
+    color: 0xf6f9ff, transparent: true, opacity: 0.85,
+    depthWrite: false, side: THREE.DoubleSide,
+  });
+  const selectionGeometry = new THREE.RingGeometry(0.82, 1, 40);
+  const selectionRings = pool(() => {
+    const ring = new THREE.Mesh(selectionGeometry, selectionMaterial);
+    ring.rotation.x = -Math.PI / 2;
+    return ring;
+  }, scene);
   // The stack the cursor is over, at a smaller radius than the selection ring: one ring means "a
   // click lands here", two mean "you are holding this one".
   const hoverRing = new THREE.Mesh(
@@ -280,6 +316,52 @@ export async function createTableScene(container) {
 
   // -- drawing -------------------------------------------------------------------------------
 
+  /**
+   * The noise's support, in the noise frame (i.e. around the view's anchor).
+   *
+   * A block law's opacity is the band's weight, because that is the one thing a block law has to
+   * say. A Gaussian has no support at all, so its ellipse is a chosen 3σ window and the caption
+   * outside the canvas says so. The renderer does not decide whether the support is shown or which
+   * table may show it -- `view.support` is already `null` in those cases.
+   */
+  function drawSupport(support) {
+    if (!support) {
+      supportSlabs(0);
+      supportEdges(0);
+      supportEllipse.visible = false;
+      return;
+    }
+    const anchor = support.anchor;
+    if (support.kind === 'ellipse') {
+      supportSlabs(0);
+      supportEdges(0);
+      supportEllipse.visible = true;
+      supportEllipse.position.set(
+        anchor[0] + support.centre[0], 0.004, -(anchor[1] + support.centre[1]));
+      supportEllipse.scale.set(support.rx, support.ry, 1);
+      return;
+    }
+    supportEllipse.visible = false;
+    const boxes = support.kind === 'box'
+      ? [{ low: support.low, high: support.high, weight: 1 }]
+      : support.bands;
+    const slabs = supportSlabs(boxes.length);
+    const edges = supportEdges(boxes.length);
+    boxes.forEach((box, index) => {
+      const x = anchor[0] + 0.5 * (box.low[0] + box.high[0]);
+      const y = anchor[1] + 0.5 * (box.low[1] + box.high[1]);
+      const width = box.high[0] - box.low[0];
+      const depth = box.high[1] - box.low[1];
+      slabs[index].position.set(x, 0.004, -y);
+      slabs[index].scale.set(width, depth, 1);
+      slabs[index].rotation.x = -Math.PI / 2;
+      slabs[index].material.opacity = 0.06 + 0.14 * box.weight;
+      edges[index].position.set(x, 0.005, -y);
+      edges[index].scale.set(width, depth, 1);
+      edges[index].rotation.x = -Math.PI / 2;
+    });
+  }
+
   function render(view) {
     const span = view.span;
     // The felt, the rim and the grid are furniture rather than geometry: they follow the camera's
@@ -323,6 +405,8 @@ export async function createTableScene(container) {
     epsMaterial.opacity = 0.22 * alpha;
     epsEdgeMaterial.opacity = 0.7 * alpha;
 
+    drawSupport(view.support);
+
     // The neighbourhoods, under the stacks: where two squares meet, the stacks above them share a
     // landing. The outline is a square, not a ring -- the payout region is a box in the infinity
     // norm, and drawing a circle around it would teach the wrong shape. The squares are allowed to
@@ -353,14 +437,14 @@ export async function createTableScene(container) {
       (sum, stack) => sum + stack.plan.full + (stack.plan.partial > 0 ? 1 : 0), 0);
     const stacks = stackDiscs(wanted);
     let cursor = 0;
-    let selectedSpot = null;
+    const selectedSpots = [];
     let hoverSpot = null;
     view.stacks.forEach((stack) => {
       const material = discMaterials[stack.state];
       // The tap's acknowledgement: the stack the hand just touched swells for a moment.
       const scale = radius * (1 + 0.14 * stack.pressT * (stack.selected ? 1 : 0));
       const lift = stack.state === 'hit' ? 0.06 * span * view.settleT : 0;
-      if (stack.selected) selectedSpot = { at: stack.at, radius: scale, lift };
+      if (stack.selected) selectedSpots.push({ at: stack.at, radius: scale, lift });
       if (stack.hover) hoverSpot = { at: stack.at, radius: scale, lift };
       const { full, partial, thickness, step } = stack.plan;
       for (let i = 0; i < full; i += 1, cursor += 1) {
@@ -395,21 +479,21 @@ export async function createTableScene(container) {
       }
     });
 
-    // The ring that says "this is the stack the toolbar is about", and the dimmer one that says
+    // The rings that say "these are the stacks the toolbar is about", and the dimmer one that says
     // where a click would land. Selecting on a touch screen gives no other feedback at all, so
-    // without them the toolbar appears out of nowhere.
-    selectionRing.material.opacity = 0.85 * alpha;
+    // without them the toolbar appears out of nowhere -- and a group with one ring would look like
+    // a single stack.
+    selectionMaterial.opacity = 0.85 * alpha;
+    const selectedRings = selectionRings(selectedSpots.length);
+    selectedSpots.forEach((spot, index) => {
+      selectedRings[index].position.set(spot.at[0], 0.012 + spot.lift, -spot.at[1]);
+      selectedRings[index].scale.setScalar(spot.radius * 1.9);
+    });
     hoverRing.material.opacity = 0.3 * alpha;
     hoverRing.visible = hoverSpot !== null;
     if (hoverSpot) {
       hoverRing.position.set(hoverSpot.at[0], 0.011 + hoverSpot.lift, -hoverSpot.at[1]);
       hoverRing.scale.setScalar(hoverSpot.radius * 1.5);
-    }
-    selectionRing.visible = selectedSpot !== null;
-    if (selectedSpot) {
-      selectionRing.position.set(
-        selectedSpot.at[0], 0.012 + selectedSpot.lift, -selectedSpot.at[1]);
-      selectionRing.scale.setScalar(selectedSpot.radius * 1.9);
     }
 
     // The one solid thing on the felt, at every moment: where it landed, or in the air on the way.

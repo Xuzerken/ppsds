@@ -44,7 +44,7 @@ Submodules
 Usage and further notes: see ``README.md`` and ``docs/tutorials/``.
 """
 
-__version__ = "0.0.2"
+__version__ = "0.0.3a0"
 
 # The minimal public surface for Scene 1. Scene 2 things (Env / the various DynamicsMode)
 # are imported explicitly from their submodules, so that people who only want the predictor

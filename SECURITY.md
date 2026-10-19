@@ -9,11 +9,12 @@ speak of, and inventing one would only obscure that.
 
 | version | supported |
 |---|---|
-| `0.1.x` | yes |
+| `0.0.3-alpha` (PyPI `0.0.3a0`) | yes — the current pre-release line |
+| `0.1.x` | not released yet; it will be the first stable line |
 
-Every version before `0.1.0` was published only to collaborators and never to PyPI, so no
-supported artifact predates the `0.1.x` line. Fixes go there; the project is pre-1.0 and does
-not maintain parallel release branches.
+`0.0.1` and `0.0.2` were handed to collaborators only and never published to PyPI.
+`0.0.3-alpha` is the first PyPI artifact. Fixes land on the current pre-release line; the
+project is pre-1.0 and does not maintain parallel release branches.
 
 ## What the attack surface actually is
 

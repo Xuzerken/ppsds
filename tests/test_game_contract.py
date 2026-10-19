@@ -256,6 +256,35 @@ def test_the_presets_exported_match_the_presets_declared():
         assert payload['x0'] == pytest.approx([float(v) for v in declared.x0])
 
 
+def _noise_covariance(law):
+    """The law's covariance, whichever family it belongs to."""
+    cov = getattr(law, 'cov', None)
+    if cov is not None:
+        return np.asarray(cov, dtype=float)
+    low, high = getattr(law, 'low', None), getattr(law, 'high', None)
+    if low is None or high is None:
+        raise AssertionError(f'{type(law).__name__} exposes neither cov nor low/high')
+    return np.diag((np.asarray(high, dtype=float) - np.asarray(low, dtype=float)) ** 2 / 12.0)
+
+
+@pytest.mark.parametrize('key', list(presets.PRESETS))
+def test_x0_gives_each_table_a_visible_single_step_signal(key):
+    """The game has to show the system *moving*; the start is chosen for that.
+
+    The origin is a fixed point of the shear, so a trajectory from it begins with a step of
+    exactly zero: every landing in round one is pure noise, and the page's central claim -- that
+    a known drift moves the puck -- is invisible for the rounds a new player actually sees. The
+    fix is a start whose one-step nominal displacement is at least the noise's RMS radius; the
+    drift matrix and the noise law are untouched, so par and the safe layouts do not move.
+    """
+    preset = presets.get(key)
+    step = np.asarray(preset.drift(preset.x0, np.zeros(0)), dtype=float) - preset.x0
+    rms = np.sqrt(np.trace(_noise_covariance(preset.noise())))
+    assert np.linalg.norm(step) >= rms, (
+        f'{key}: one nominal step is {np.linalg.norm(step):.3f}, below the noise RMS {rms:.3f}; '
+        'move x0 away from the fixed point / further out')
+
+
 def test_a_biased_table_exports_a_block_law():
     """The page describes the noise from the export, so the export has to carry the blocks.
 

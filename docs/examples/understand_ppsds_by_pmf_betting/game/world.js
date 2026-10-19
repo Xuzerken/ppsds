@@ -161,6 +161,28 @@ export function nearestIndex(point, positions, reach) {
   return best === null ? null : best.index;
 }
 
+/**
+ * Which stacks a screen-space rectangle encloses.
+ *
+ * The marquee is drawn in pixels and the stacks live in state space, so the caller projects the
+ * stack tops first (they are what a player sees) and this only does the inclusion test. A rectangle
+ * dragged in any direction is normalised here, so "right-to-left" means the same thing as
+ * "left-to-right".
+ */
+export function indicesInRect(rect, points) {
+  if (!rect || !Array.isArray(points)) return [];
+  const x0 = Math.min(rect.x0, rect.x1);
+  const x1 = Math.max(rect.x0, rect.x1);
+  const y0 = Math.min(rect.y0, rect.y1);
+  const y1 = Math.max(rect.y0, rect.y1);
+  return points.reduce((inside, point, index) => {
+    if (point && point.x >= x0 && point.x <= x1 && point.y >= y0 && point.y <= y1) {
+      inside.push(index);
+    }
+    return inside;
+  }, []);
+}
+
 // -- stacks: a height, and the lattice it sits on ----------------------------------------------
 //
 // A stack is an atom with a **continuous weight** -- not a count of stacks. Only proportions are
@@ -241,19 +263,20 @@ export const TOWER_ROOM = 1.0;
 /** The bottom of the slider. A stack is taken off the table by the Remove button, never by
  *  squeezing its height to nothing -- a slider that deletes what it is sliding is a slider nobody
  *  dares drag to the end. */
-export const WEIGHT_MIN = 0.02;
+export const WEIGHT_MIN = 0.1;
 /**
- * The slider's range, as a *ratio* rather than a ceiling.
+ * The slider's range, as a *ratio*.
  *
- * Only the ratio between stacks decides what a round pays, so no weight is more correct than
- * another and there is nothing to stop at -- a hard top is what made the height control feel
- * broken. The slider is therefore logarithmic: its handle is the log of the weight, so dragging
- * right keeps multiplying and never runs out. 2^14 spans "barely on this spot" to "sixteen
- * thousand times that", which is far past the point where one stack is the whole bet.
+ * Only the ratio between stacks decides what a round pays, so the slider is logarithmic: its
+ * handle is the log of the weight, and dragging changes the weight by a constant *factor* rather
+ * than a constant amount. The range is deliberately short. A 2^14 span let one drag put a tower
+ * sixty-five thousand times the height of a fresh stack on the table, and a mis-touch on the way
+ * to closing the toolbar could do it; the player asked for a height they can actually read, so the
+ * control now stops at eight times the default stack.
  */
-export const WEIGHT_SPAN = 2 ** 14;
-/** The top of that range, in weight units. Not a limit the player meets -- only a number that is
- *  still a number, so the export stays finite. */
+export const WEIGHT_SPAN = 80;
+/** The top of that range, in weight units (8). It is reachable on purpose: a tower that can be
+ *  made too tall is the bug this replaced, and a cap the player never meets is not a cap. */
 export const WEIGHT_CEILING = WEIGHT_MIN * WEIGHT_SPAN;
 /** One step of the slider's own coordinate, which is `0..1` rather than a weight. */
 export const WEIGHT_STEP = 0.001;
@@ -415,4 +438,44 @@ export function noiseProse(preset) {
     return `Every landing wobbles away from the prediction, ${spread}.`;
   }
   return 'The landing follows the table\'s own law.';
+}
+
+/** How many standard deviations the drawn Gaussian window reaches. It is a window, not a support:
+ *  a Gaussian can land anywhere, so the caption says so. */
+export const SUPPORT_SIGMA = 3;
+
+/**
+ * The noise's support, as something a renderer can draw -- in the **noise frame**, i.e. as offsets
+ * from the nominal next state.
+ *
+ * A uniform law has an exact box; a block law has a handful of weighted boxes and the weights are
+ * the interesting part; a Gaussian has no support at all, so the closest honest picture is a chosen
+ * window (three sigma), labelled as such. A table that keeps its law to itself returns `null` --
+ * drawing a box there would hand over the very thing the table is keeping.
+ */
+export function supportShape(preset) {
+  const noise = preset ? preset.noise : null;
+  if (!noise) return null;
+  if (noise.kind === 'uniform') {
+    return { kind: 'box', low: noise.low, high: noise.high, label: 'exact support' };
+  }
+  if (noise.kind === 'blocks') {
+    return {
+      kind: 'bands',
+      bands: noise.boxes.map(([low, high], index) => ({
+        low, high, weight: noise.weights[index],
+      })),
+      label: 'weighted bands',
+    };
+  }
+  if (noise.kind === 'gaussian') {
+    return {
+      kind: 'ellipse',
+      centre: noise.mean,
+      rx: SUPPORT_SIGMA * Math.sqrt(noise.cov[0][0]),
+      ry: SUPPORT_SIGMA * Math.sqrt(noise.cov[1][1]),
+      label: '3σ window — not a guarantee',
+    };
+  }
+  return null;
 }

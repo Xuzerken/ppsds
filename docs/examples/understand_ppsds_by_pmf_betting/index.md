@@ -1,4 +1,4 @@
-# Play, then measure
+# Understand ppsds by playing bet game
 
 The fastest way to see what this package is about is to play it. The page below is the whole idea
 with the abstraction removed: a puck moves around a table, you put stacks where you think it will
@@ -9,7 +9,7 @@ land next, the dealer drops a ball, and every stack within `epsilon` of the land
         loading="lazy"></iframe>
 
 If the frame does not load, open
-[the game directly](https://xuzerken.github.io/ppsds/understand_ppsds_by_pmf_betting/game/index.html) — it is a static page with no
+[the game directly](https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/game/index.html) — it is a static page with no
 server behind it. The **Full screen** button (or `F`) gives it the whole window, and **Hide
 panel** (or `P`) folds the control column away, leaving only the table. That costs you nothing but
 the settings: everything a round needs — the hand buttons, the switches, the score, the running
@@ -21,7 +21,18 @@ needs from the network is the 3-D library, and without it it shows a flat table 
 that flat table is also a choice, under **How it is drawn**, for a reader on a machine without a GPU
 or on one where the table reads better without the depth.
 
-## What you are actually doing
+The first visit starts a short **guided tour**: a card in the table's lower-left corner and a
+bouncing arrow that points at the one thing each step is about. **The six steps are the skeleton of
+this page, and the sections below follow them in order**: turn on prediction, place a stack, cover
+the noise support, change a height, deal, next round. A step's **Next** stays disabled until you
+have actually done what it asks (the table, not the button, says when a step is done), and
+**Back** returns to the previous step without undoing anything. **Skip** closes the tour for this
+visit — and takes the static "Place your stacks" hint with it — the **teaching** switch next to
+Hide panel brings it back, and so does **Show the tour** at the bottom of How to play. Nothing
+about the tour is stored — every visit starts it again — which is part of the same promise as the
+rest of the page: no server, no files, nothing kept between visits.
+
+## The three things on the screen
 
 Three things are on the screen, and they are the three things this package is made of:
 
@@ -31,105 +42,190 @@ Three things are on the screen, and they are the three things this package is ma
 | the stacks you place | the **probabilistic predictor** — a pmf over where the puck will be |
 | how they pay | the **scoring rule** — the `epsilon`-logarithm score |
 
+The **Game settings** row holds the table card: the drift in plain words, an animated picture of
+what it does to a puck, the noise law, and (folded away) the matrix itself. Placement (snap), the
+preset predictors and the table's display live in the panel, where settings belong. Every control
+that is not simply "carry on" carries a **?** in its corner. Tapping it opens the sentence that
+explains it — the same sentences a manual would have to repeat, kept next to the things they are
+about instead of in a paragraph somewhere else.
+
+## 1. Turn on prediction
+
+The tour starts here because the prediction is the thing the rest of the round is about. The
+switch is in the table's top-right corner and starts **off**; turning it on draws two things that
+belong together:
+
+- where the drift alone would put the puck, and the drift's next few steps;
+- the **noise support** around it, in the marker's gold at a low opacity: the region where the
+  landing law says the puck can land.
+
 The table's own movement is **given**: pick a table and you are saying its drift is known to you.
 That is the setting the package works in — a known nominal model, an unknown disturbance — and it
-is why the page draws the drift instead of hiding it. The **Game settings** row holds the table
-card: the drift in plain words, an animated picture of what it does to a puck, the noise law, and
-(folded away) the matrix itself. The switches in the table's top-right corner are the only things
-that are optional, and **prediction** is the first of them: it decides whether *this round's*
-prediction is drawn, not whether the drift is known.
+is why the page draws the drift instead of hiding it. Turning the switch off changes no number,
+only what you can see while you choose. The preset layouts are built around the prediction, so they
+are disabled while it is hidden.
 
-Every control on the table that is not simply "carry on" carries a **?** in its corner. Tapping it
-opens the sentence that explains it — the same sentences a manual would have to repeat, kept next
-to the things they are about instead of in a paragraph somewhere else.
+The support is drawn for the law the table publishes: an exact box for uniform noise, weighted
+bands for a block law, or a 3σ window for a Gaussian (a window, not a guarantee). A table that keeps
+its law draws nothing. **`last rounds`** is the other see switch and also starts off: it draws the
+wake the puck has walked this run, with a ghost of the ball at every place it has landed.
 
-## Stacks, payout, and the two means
+??? note "The five tables, and the one that keeps its law"
+    The tables differ in their **noise** — what the dealer's ball does — and the point of having
+    more than one is that they are not equally easy to bet well on:
 
-Your stacks are a pmf: each one sits on a spot and carries a **weight**, drawn as its height and
+    | table | what makes it interesting |
+    |---|---|
+    | **Long Table** | uniform noise on a square; the system from the predictability paper |
+    | **Roulette** | the landing wobbles with a Gaussian, so no hand can be guaranteed anything |
+    | **Whirlpool** | a contraction: each round is a smaller step than the last, so the action crowds into a shrinking region |
+    | **Stacked Deck** | three bands, and 80% of landings fall in the middle one. Covering the noise support is still *safe* — and it is no longer the best you can do: aiming at the fat band pays more, and risks a round that pays nothing |
+    | **House Rules** | the same idea with four unequal corners, and the table **does not publish its landing law** |
+
+    On **House Rules** the page withholds everything derived from that law: no description of it,
+    no safety verdict, no par line, and "Cover the noise support" is off (the layout would be built
+    from the very support you are not being told). What you have instead is the payout, the score,
+    and the landings you have already seen — which is the point of the table. It is a test of
+    reading, not a secret in any cryptographic sense: the replays the page plays are the recorded
+    draws, and anyone who opens the network tab can have them.
+
+## 2. Place a stack
+
+Tap the felt to put a stack where you think the puck lands. Drag a stack to move it, drag the felt
+to turn the table, and scroll or pinch to zoom. A tap on a stack already there picks it up instead
+of stacking a second one on the same spot; tap it again to put it down. With **snap to grid** on,
+every stack lands on a payout square, so your squares tile the table and a landing is worth exactly
+one stack; off, a grid three times finer lets two stacks stand a third of a cell apart.
+
+Your stacks are a **pmf**: each one sits on a spot and carries a **weight**, drawn as its height and
 written on it as a percentage. Only the percentages are ever compared — a weight's own size is a
-free parameter, so the page never asks you to choose one — and what settles is the **share** of
-the bet that landed within `epsilon` of the ball:
+free parameter, so the page never asks you to choose one — and the number written on each stack is
+its share of the whole bet.
+
+The **Preset predictors** group in Game settings builds or recalls a whole layout, so you do not
+have to place stacks one at a time: **Even spread** is the baseline the experiment below falls back
+to, at a spacing that deliberately does not divide a box evenly (see the note in
+`experiments/pmf_betting/presets.py` for why); **Repeat last hand** puts the previous round's
+layout back, re-anchored on the new prediction; and **Cover the noise support** tiles the whole
+support — that is the next step's story. They are switches rather than one-way doors: press the one
+you just pressed, while the table is still holding exactly what it laid out, and you get the hand
+you had before it. Touch anything in between — move a stack, change a height — and the button means
+"lay it out again", because a hand that has been edited since is a different hand.
+
+??? note "Select several stacks at once"
+    **Select** (or Shift-click without it) gathers several stacks, and the slider, `−`/`+` and
+    Remove then act on all of them; dragging any selected stack moves the group and refuses if a
+    destination is taken. While Select is on, tap a stack to add or remove it, or drag on the empty
+    felt to draw a box; a tap on empty felt clears the selection, and placing needs Select off.
+
+??? note "A pmf is a legitimate prediction"
+    The stacks are a **pmf**: a set of atoms with weights, whose support need not contain the true
+    distribution's support. Under the ordinary logarithm score that prediction is `-inf` almost
+    surely, and it would be reasonable to conclude that pmfs are useless here. Under a
+    neighbourhood score they are perfectly usable, and they buy something a Gaussian cannot:
+
+    - the predictive distribution can be **multimodal**, or a shape you drew by hand;
+    - it can be **sparse**, which is what you want when you have a few strong beliefs rather than a
+      broad one;
+    - it can be **honest about a bounded support**, without a Gaussian's tails.
+
+    ```python
+    from ppsds.numerics.atom_pmf import AtomPmf
+    from ppsds.probabilistic_predictor.pmf.atom import DriftShiftedAtomPmfPredictor
+    from ppsds.scoring_rule.epsilon_logarithm_score import EpsilonLogarithmScore
+
+    bet = AtomPmf(atoms, weights)                       # offsets from the nominal next state
+    predictor = DriftShiftedAtomPmfPredictor(bet, drift)
+
+    predictor.update(x_observe, u_observe)
+    predictor.predict()                                 # an AtomPmf
+    EpsilonLogarithmScore(0.5)(predictor.predict(), x_next)
+    ```
+
+    > A pmf has no density, so the ordinary `LogarithmScore` returns `-inf` for it, and the `O(eps)`
+    > approximation from the [the predictability paper](../../research/probabilistic-predictability.md)
+    > page does not exist for it. That is not a gap in the library: it is the reason the
+    > neighbourhood score exists.
+
+## 3. Cover the noise support
+
+A stack's payout square is its `epsilon`-neighbourhood: with `epsilon = 0.5` (the default) it is a
+square one unit wide, and a landing inside it counts that stack's weight. **Cover the noise
+support** places equal stacks so that their squares tile the noise's whole support. No landing can
+then fall outside every stack, so no round can pay nothing. The badge above the table says what
+that layout guarantees: `Safe · worst case 25.0%`.
+
+That is the safe hand, and it is one end of a trade. On a table whose noise is **not uniform**, the
+safe hand is safe and no longer best: it pays the same share wherever the ball lands, while par —
+the best average any hand could reach — is higher, because a table with a fat band is a table with
+less entropy. The gap between them is the money you leave on the table by not aiming, and the
+scoreboard shows it. Trying to close it means betting on the fat band, which is the moment a round
+can pay nothing at all. Both hands are one click away; the choice is the game. The badge's other
+verdict is `Not safe · …% uncovered`: some landing is outside every square, and that landing pays
+nothing and ends the run.
+
+When the noise is **unbounded** — the Roulette table's Gaussian wobble — no layout can promise
+anything, and the badge changes its claim rather than its colour: it reports the share of landings
+the current stacks catch, and says it is a probability, not a guarantee.
+
+## 4. Change a height
+
+Tap a stack to open its toolbar, then drag the slider or use `−`/`+` (12% a press, or hold to
+repeat). The height is its **weight**, and the percentage on the stack is its share of the whole
+bet — the number the scoring rule uses.
+
+A tower is its own weight: a stack twice as heavy is drawn twice as tall, and moving one stack never
+moves another. Only the ratios between stacks are ever compared, so what a weight means is its
+share. The slider is logarithmic, because a ratio wants a ratio scale, but it stops at eight times
+a fresh stack: that is a comfort cap, not a claim about weights. It keeps the tallest tower readable
+on a table and keeps a mis-touch from turning the felt into a very tall grid; the shares, which are
+the numbers that matter, are unaffected. With a selection, the slider and `−`/`+` act on the whole
+group.
+
+## 5. Deal
+
+Press Deal. The ball lands, and every stack within `epsilon` of it pays its share. What settles is
+the **share** of the bet that landed:
 
 ```
 paid    = the weight within eps of the landing, over all the weight on the table
 score   = log(paid)
 ```
 
-The height control has no top, and a tower is its own weight: a stack twice as heavy is drawn
-twice as tall, and moving one stack never moves another. Since only the ratios between stacks are
-ever compared, a ceiling on a weight would be a ceiling on nothing — and reaching one is what makes
-a height control feel broken — so the control is logarithmic: it keeps multiplying for as long as
-you keep pushing it. The one thing that has to give is the camera, which backs off far enough to
-keep the tallest tower in the picture and comes back in when you lower it. The percentage written
-on each stack is its share of the bet exactly, and that is the number the scoring rule uses.
-
 The page shows both, because they answer different questions. `paid` is the one to feel — "a
 quarter of my bet came back". The score is the one that accumulates: the *average of the log
-scores* is a rate, and `exp` of it is the growth a round — what the same numbers would compound
-at if they were rolled over. The page shows that next to the plain average payout, because the
-two differ and only one of them compounds.
+scores* is a rate, and `exp` of it is the growth a round — what the same numbers would compound at
+if they were rolled over. The page shows that next to the plain average payout, because the two
+differ and only one of them compounds.
 
-One round that pays nothing ends the run: that is what `-inf` means here, and the page stops
-rather than averaging it into the next round.
-
-## Five tables, and one that keeps its law
-
-The tables differ in their **noise** — what the dealer's ball does — and the point of having more
-than one is that they are not equally easy to bet well on:
-
-| table | what makes it interesting |
-|---|---|
-| **Long Table** | uniform noise on a square; the system from the predictability paper |
-| **Roulette** | the landing wobbles with a Gaussian, so no hand can be guaranteed anything |
-| **Whirlpool** | a contraction: each round is a smaller step than the last, so the action crowds into a shrinking region |
-| **Stacked Deck** | three bands, and 80% of landings fall in the middle one. Covering the table is still *safe* — and it is no longer the best you can do: aiming at the fat band pays more, and risks a round that pays nothing |
-| **House Rules** | the same idea with four unequal corners, and the table **does not publish its landing law** |
-
-On **House Rules** the page withholds everything derived from that law: no description of it, no
-safety verdict, no par line, and "Cover the table" is off (the layout would be built from the very
-support you are not being told). What you have instead is the payout, the score, and the landings
-you have already seen — which is the point of the table. It is a test of reading, not a secret in
-any cryptographic sense: the replays the page plays are the recorded draws, and anyone who opens
-the network tab can have them.
-
-## The safe hand
-
-Two of the buttons build a layout for you rather than leaving you to place stacks one at a time:
-
-- **Cover the table** places equal stacks so that their `epsilon`-neighbourhoods tile the noise's
-  whole support. No landing can then fall outside every stack, so no round can pay nothing. The badge
-  above the table says what that layout guarantees: `Safe · worst case 25.0%`.
-- **Even grid** is the baseline the experiment below falls back to, at a spacing that deliberately
-  does not divide a box evenly (see the note in `experiments/pmf_betting/presets.py` for why).
-
-Both are switches rather than one-way doors: press the one you just pressed, while the table is
-still holding exactly what it laid out, and you get the hand you had before it. Touch anything in
-between — move a stack, change a height — and the button means "lay it out again", because a hand
-that has been edited since is a different hand.
-
-When the noise is **unbounded** — the Roulette table's Gaussian wobble — no layout can promise
-anything, and the badge changes its claim rather than its colour: it reports the share of landings
-the current stacks catch, and says it is a probability, not a guarantee.
-
-On a table whose noise is **not uniform**, the safe hand is safe and no longer best: it pays the
-same share wherever the ball lands, while par — the best average any hand could reach — is higher,
-because a table with a fat band is a table with less entropy. The gap between them is the money you
-leave on the table by not aiming, and the scoreboard shows it. Trying to close it means betting on
-the fat band, which is the moment a round can pay nothing at all. Both hands are one click away; the
-choice is the game.
-
-## A run, and how it ends
+## 6. Next round
 
 Between rounds the table has a beat: the hand fades out, the camera moves across the empty table,
 and the hand arrives already in its new place. Nothing slides while the camera swings, because a
 hand that moves at the same time as the camera is two things moving at once and the eye believes
-neither.
+neither. After a round settles the page stops, so you can read it and change the hand; **Next
+round** starts the next one.
 
-A run is a fixed number of rounds — ten to fifty, twenty by default. It ends when the rounds run
-out, or the moment a round pays nothing: `log(0)` is `-inf`, and the run stops there rather than
-being averaged into the next round. When it ends the page stops with it and shows what the run
+**keep my layout** starts on, because a hand is meant to be a rule you can score twice. **auto next
+round** moves on after a pause without touching your hand; **auto all rounds** also places and
+deals. A run is a fixed number of rounds — ten to fifty, twenty by default. It ends when the rounds
+run out, or the moment a round pays nothing: `log(0)` is `-inf`, and the run stops there rather
+than being averaged into the next round. When it ends the page stops with it and shows what the run
 amounted to: the average score, the best and worst rounds, and each hand you played with what it
-paid. Auto-play stops too.
+paid. **auto all rounds** stops too.
+
+??? note "Take your bets with you"
+    Two buttons take your play back with you, and they are different things:
+
+    | button | what it gives you | what it is for |
+    |---|---|---|
+    | **Copy this round** | one hand: `{preset, eps, trajectory, step, atoms, weights}` | scoring *the hand* — the same atoms and weights mean the same thing on every round and every trajectory, so it can be scored against thousands of draws |
+    | **Export this run** | every round you played, with the run it was played on | replaying *the run* — the script walks the same trajectory and reproduces the numbers you watched |
+
+    Both buttons live in the page's own panel, under **Take your bets with you**, and the run-end
+    summary carries the export as well: the end of a run is when you most likely want the file.
+    Nothing is saved anywhere. The page has no server, writes no files, and keeps nothing between
+    visits: what you want to keep, you export, and it lands in your own downloads folder.
 
 ## From the game to an experiment
 
@@ -144,62 +240,23 @@ python experiments/pmf_betting/run.py --covering --preset shear --eps 0.5   # th
 
 The systems are defined **once**, in `experiments/pmf_betting/presets.py`, and the page's data is
 exported from it — so the game and the experiment are the same world rather than two demos that
-happen to look alike.
-
-Two buttons take your play back with you, and they are different things:
-
-| button | what it gives you | what it is for |
-|---|---|---|
-| **Copy this round** | one hand: `{preset, eps, trajectory, step, atoms, weights}` | scoring *the hand* — the same atoms and weights mean the same thing on every round and every trajectory, so it can be scored against thousands of draws |
-| **Export this run** | every round you played, with the run it was played on | replaying *the run* — the script walks the same trajectory and reproduces the numbers you watched |
+happen to look alike. The files from **Copy this round** and **Export this run** are what the same
+script replays:
 
 ```bash
 python experiments/pmf_betting/run.py --bets my_bets.json    # one hand, over many trajectories
 python experiments/pmf_betting/run.py --bets my_run.json     # one run, replayed round by round
 ```
 
-Both buttons live in the page's own panel, under **Take your bets with you**, and the run-end
-summary carries the export as well: the end of a run is when you most likely want the file.
-
-Nothing is saved anywhere. The page has no server, writes no files, and keeps nothing between
-visits: what you want to keep, you export, and it lands in your own downloads folder.
-
-## A pmf is a legitimate prediction
-
-The stacks are a **pmf**: a set of atoms with weights, whose support need not contain the true
-distribution's support. Under the ordinary logarithm score that prediction is `-inf` almost
-surely, and it would be reasonable to conclude that pmfs are useless here. Under a neighbourhood
-score they are perfectly usable, and they buy something a Gaussian cannot:
-
-- the predictive distribution can be **multimodal**, or a shape you drew by hand;
-- it can be **sparse**, which is what you want when you have a few strong beliefs rather than a
-  broad one;
-- it can be **honest about a bounded support**, without a Gaussian's tails.
-
-```python
-from ppsds.numerics.atom_pmf import AtomPmf
-from ppsds.probabilistic_predictor.pmf.atom import DriftShiftedAtomPmfPredictor
-from ppsds.scoring_rule.epsilon_logarithm_score import EpsilonLogarithmScore
-
-bet = AtomPmf(atoms, weights)                       # offsets from the nominal next state
-predictor = DriftShiftedAtomPmfPredictor(bet, drift)
-
-predictor.update(x_observe, u_observe)
-predictor.predict()                                 # an AtomPmf
-EpsilonLogarithmScore(0.5)(predictor.predict(), x_next)
-```
-
-> A pmf has no density, so the ordinary `LogarithmScore` returns `-inf` for it, and the `O(eps)`
-> approximation from the [the predictability paper](../../research/probabilistic-predictability.md) page does not exist for it. That is
-> not a gap in the library: it is the reason the neighbourhood score exists.
-
 ## Why the page is checked automatically
 
 **How to play** is a button in the page, not a paragraph at the start: it opens a guide with the
 gestures (tap to place, tap a stack to select it — and tap it again to let it go — set its height on
-the slider, drag to move, pinch to zoom, long-press to remove, `Ctrl+Z` to undo), the three things
-you will do most, what the safe hand and par mean, how a run ends, and where your numbers go. The first-round hint points at it, and it stays available for the
-whole session.
+the slider, drag a stack to move it, drag the felt to turn the table, pinch or scroll to zoom), the
+**Select** mode that turns taps and a box into a group, the three things you will do most, what the
+safe hand and par mean, the noise-support overlay, how a run ends (with **auto next round** told
+apart from **auto all rounds**), and where your numbers go. The first visit also gets the six-step
+tour; the teaching switch sits next to Hide panel, and the guide stays available for the session.
 
 The page recomputes the scoring rule — and the coverage arithmetic, and the safe layout, and the
 table's own dynamics — in JavaScript. It has to, to answer your click instantly and without a

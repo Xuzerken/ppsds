@@ -6,7 +6,8 @@
  * That split is not tidiness: thresholds are where a touch interface lives or dies, and a
  * threshold that can only be checked by playing on a phone does not get checked.
  *
- * Two rules came out of actually playing the thing, and both are the reason this file exists:
+ * Three rules came out of actually playing the thing, and all three are the reason this file
+ * exists:
  *
  * * **Displacement is measured from where the pointer went down, not between events.** The first
  *   version compared each event to the previous one, so the 3-8 px of jitter in a finger tap
@@ -17,6 +18,10 @@
  *   height changes from the toolbar, where it takes a deliberate press. That promise used to be
  *   kept by the toolbar and broken by the tap itself: the tap selected the stack *and* placed a
  *   new one in the same cell, underneath it. Which is why `pointerUp` now reports what it hit.
+ * * **In Select mode a tap toggles membership on the way up, not down.** A drag on a selected
+ *   stack is the gesture that moves the whole group, so it cannot also be the gesture that
+ *   deselects the stack it started on. A press records the candidate; only a tap that never became
+ *   a drag flips it.
  *
  * The caller decides *what* was hit (`hit`) -- picking needs the renderer's projection -- and this
  * file decides what the sequence of hits and movements means.
@@ -25,40 +30,40 @@
 /** Movement, in CSS pixels, that separates a tap from a drag. Fingers are less precise than mice. */
 export const SLOP = { mouse: 4, touch: 12 };
 
-/** How long a press on a stack has to last to remove it. */
-export const LONGPRESS_MS = 500;
-
 /** A fresh gesture state. One per stage; the shell keeps it for the life of the page. */
 export function createGestureState() {
   return {
     pointers: {}, // pointerId -> { x, y, startX, startY, touch }
-    mode: 'idle', // 'idle' | 'pending' | 'drag' | 'orbit' | 'pinch' | 'spent'
+    mode: 'idle', // 'idle' | 'pending' | 'select-pending' | 'drag' | 'orbit' | 'pinch' | 'marquee'
     target: null, // index of the stack a drag is carrying
     moved: 0, // the largest distance from the start point, in CSS pixels
-    consumed: false, // a long press has already decided this gesture
+    selectMode: false, // the mode captured when this gesture started
   };
 }
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const count = (state) => Object.keys(state.pointers).length;
 const slopOf = (state) => (state.pointers[Object.keys(state.pointers)[0]]?.touch ? SLOP.touch : SLOP.mouse);
+const rectOf = (point, x, y) => ({ x0: point.startX, y0: point.startY, x1: x, y1: y });
 
 /**
  * A pointer went down.
  *
  * @param {object} state the gesture state (mutated)
- * @param {{id: number, x: number, y: number, touch?: boolean, hit?: number|null}} event
+ * @param {{id: number, x: number, y: number, touch?: boolean, hit?: number|null,
+ *          shift?: boolean, selectMode?: boolean}} event
  * @returns {{kind: string, [key: string]: any}} the intent
  */
 export function pointerDown(state, event) {
   const point = { x: event.x, y: event.y, startX: event.x, startY: event.y, touch: Boolean(event.touch) };
   state.pointers[event.id] = point;
   state.moved = 0;
-  state.consumed = false;
+  state.selectMode = Boolean(event.selectMode);
 
   if (count(state) >= 2) {
     // A second finger means zooming, and it cancels whatever the first one was doing: a pinch that
-    // turns into a drag (or leaves a stack half-moved) is the classic multi-touch wart.
+    // turns into a drag (or leaves a stack half-moved, or a marquee half-drawn) is the classic
+    // multi-touch wart.
     const wasDragging = state.mode === 'drag' && state.target !== null;
     const target = state.target;
     state.mode = 'pinch';
@@ -66,11 +71,18 @@ export function pointerDown(state, event) {
     return wasDragging ? { kind: 'release', index: target } : { kind: 'none' };
   }
 
-  state.mode = 'pending';
   state.target = event.hit === null || event.hit === undefined ? null : event.hit;
+  if (state.target === null) {
+    state.mode = 'pending';
+    return { kind: 'none' };
+  }
   // Selecting on the way down, not on the way up: the ring has to appear under the finger, and
-  // "did that register?" is exactly the doubt a touch interface cannot afford.
-  return state.target === null ? { kind: 'none' } : { kind: 'select', index: state.target };
+  // "did that register?" is exactly the doubt a touch interface cannot afford. Select mode is the
+  // exception -- there a press may still become a group drag, so membership waits for the tap.
+  state.mode = state.selectMode ? 'select-pending' : 'pending';
+  return state.selectMode
+    ? { kind: 'none' }
+    : { kind: 'select', index: state.target, additive: Boolean(event.shift) };
 }
 
 /**
@@ -86,17 +98,32 @@ export function pointerMove(state, event) {
   point.y = event.y;
 
   if (state.mode === 'pinch') return pinch(state);
-  if (state.mode === 'spent') return { kind: 'none' };
 
   const fromStart = distance(point, { x: point.startX, y: point.startY });
   state.moved = Math.max(state.moved, fromStart);
   if (state.moved <= slopOf(state)) return { kind: 'none' }; // still a tap, whatever else happens
 
+  if (state.mode === 'marquee') {
+    return { kind: 'marquee', rect: rectOf(point, point.x, point.y) };
+  }
   if (state.mode === 'pending') {
-    state.mode = state.target === null ? 'orbit' : 'drag';
-    // The first turn of the table starts from *here*, so entering a drag does not jump the view by
-    // the slop distance.
-    return state.mode === 'drag' ? { kind: 'drag-start', index: state.target } : { kind: 'none' };
+    if (state.target === null) {
+      if (state.selectMode) {
+        state.mode = 'marquee';
+        return { kind: 'marquee-start', rect: rectOf(point, point.x, point.y) };
+      }
+      state.mode = 'orbit';
+      // The first turn of the table starts from *here*, so entering an orbit does not jump the view
+      // by the slop distance.
+      return { kind: 'none' };
+    }
+    state.mode = 'drag';
+    return { kind: 'drag-start', index: state.target };
+  }
+  if (state.mode === 'select-pending') {
+    // The press became a drag, which is how a selected group is moved; it is not a toggle.
+    state.mode = 'drag';
+    return { kind: 'drag-start', index: state.target };
   }
   if (state.mode === 'drag') {
     return { kind: 'drag', index: state.target, dx: point.x - previous.x, dy: point.y - previous.y };
@@ -133,11 +160,23 @@ export function pointerUp(state, event) {
 
   const moved = distance(point, { x: point.startX, y: point.startY });
   const tapped = moved <= slopOf(state);
-  const wasPending = state.mode === 'pending';
+  const mode = state.mode;
   const target = state.target;
+  const x = event.x === undefined ? point.x : event.x;
+  const y = event.y === undefined ? point.y : event.y;
   reset(state);
 
-  if (tapped && wasPending) return { kind: 'place', index: target };
+  if (mode === 'marquee') {
+    return tapped
+      ? { kind: 'clear-selection' }
+      : { kind: 'marquee-end', rect: rectOf(point, x, y) };
+  }
+  if (mode === 'select-pending') {
+    return tapped && target !== null
+      ? { kind: 'select', index: target, additive: true }
+      : { kind: 'none' };
+  }
+  if (tapped && mode === 'pending') return { kind: 'place', index: target };
   return { kind: 'none' };
 }
 
@@ -147,32 +186,17 @@ export function pointerUp(state, event) {
  * @returns {{kind: string, [key: string]: any}}
  */
 export function pointerCancel(state, event = {}) {
-  const target = state.mode === 'drag' ? state.target : null;
+  const mode = state.mode;
+  const target = mode === 'drag' ? state.target : null;
   if (event.id !== undefined) delete state.pointers[event.id];
   if (count(state) > 0) {
     state.mode = 'pinch';
     state.target = null;
-    return { kind: 'none' };
+    return mode === 'marquee' ? { kind: 'marquee-cancel' } : { kind: 'none' };
   }
   reset(state);
+  if (mode === 'marquee') return { kind: 'marquee-cancel' };
   return target === null ? { kind: 'cancel' } : { kind: 'release', index: target };
-}
-
-/**
- * The long-press timer fired. The caller owns the timer; this decides whether it means anything.
- *
- * @returns {{kind: string, [key: string]: any}}
- */
-export function longPress(state) {
-  if (state.mode !== 'pending' || state.target === null || state.consumed) return { kind: 'none' };
-  state.consumed = true;
-  return { kind: 'remove', index: state.target };
-}
-
-/** Whether the gesture is still a tap so far -- the caller's long-press timer reads this to
- *  decide if the finger has wandered off. */
-export function stillTapping(state) {
-  return state.moved <= slopOf(state);
 }
 
 /** How far apart the two fingers are, for a pinch. */
@@ -187,5 +211,5 @@ function reset(state) {
   state.mode = 'idle';
   state.target = null;
   state.moved = 0;
-  state.consumed = false;
+  state.selectMode = false;
 }

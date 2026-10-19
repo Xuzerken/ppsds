@@ -24,11 +24,13 @@ import { formatSelfCheck, mean, roundStats, selfCheck } from './scoring.js';
 import { createFlatScene, drawFanPreview, drawScoreChart, scoreIndexAt } from './scene2d.js';
 import { feltOf } from './theme.js';
 import { WEIGHT_CEILING, WEIGHT_MIN, WEIGHT_STEP, discFootprint, discRadius, discPlan,
-  fanStarts, frameBox, grabReach, latticeStep, nearestIndex, nominalNext, nominalPath, noiseProse,
-  panelWidth, safeBox, sameHand, shares, sliderFromWeight, smoothstep, snapToLattice, stackHeight,
-  supportBox, viewSpan, weightFromSlider } from './world.js';
-import { LONGPRESS_MS, createGestureState, longPress, pointerCancel, pointerDown,
-  pointerMove, pointerUp, stillTapping } from './gestures.js';
+  fanStarts, frameBox, grabReach, indicesInRect, latticeStep, nearestIndex, nominalNext,
+  nominalPath, noiseProse, panelWidth, safeBox, sameHand, shares, sliderFromWeight, smoothstep,
+  snapToLattice, stackHeight, supportBox, supportShape, viewSpan, weightFromSlider } from './world.js';
+import { createGestureState, pointerCancel, pointerDown, pointerMove,
+  pointerUp } from './gestures.js';
+import { TOUR_STEPS, createTutorial, tourSpot, tutorialBack, tutorialNext, tutorialReady,
+  tutorialReopen, tutorialSetEnabled, tutorialSkip, tutorialStep } from './tutorial.js';
 
 /** How far ahead the aim assist draws the drift's path. */
 const PATH_STEPS = 5;
@@ -43,7 +45,7 @@ export const DEFAULT_RUN_LENGTH = 20;
  *  should be able to ask for the flat one. */
 export const SURFACES = [['3d', '3-D table'], ['flat', 'Flat table']];
 
-/** The weight "Cover the table" gives every stack. Equal weights are the whole point of that
+/** The weight "Cover the noise support" gives every stack. Equal weights are the whole point of that
  *  layout -- it is the one that cannot miss -- so they are all the same number. */
 const COVER_WEIGHT = 1;
 
@@ -52,8 +54,14 @@ const COVER_WEIGHT = 1;
 const NEW_STACK_WEIGHT = 1;
 
 /** What one press of −/＋ multiplies a stack's height by. Multiplicative because the slider's range
- *  is a ratio -- a fixed step would crawl at the top and leap at the bottom. */
-export const NUDGE_FACTOR = 1.25;
+ *  is a ratio -- a fixed step would crawl at the top and leap at the bottom. It used to be 1.25,
+ *  which meant a held button could double a tower in half a second; the reachable cap is lower now
+ *  too, so the step is gentler as well. */
+export const NUDGE_FACTOR = 1.12;
+
+/** How long a settled round waits before auto-continue moves on. Long enough to read what the
+ *  round paid, short enough that "auto" still feels automatic; the settlement beat is 900 ms. */
+export const AUTO_CONTINUE_MS = 1400;
 
 /** The throw and the settlement, in milliseconds, and the change between two rounds.
  *
@@ -87,18 +95,21 @@ export function createGame(assets) {
     step: 0,
     stacks: [], // {x, y, w}: offsets from the predicted point, w a continuous weight
     phase: 'bet', // 'bet' | 'dealing' | 'settled' | 'over'
-    selected: null,
+    selection: [], // sorted unique indices; one tap selects one, Shift / Select mode add more
+    selectMode: false, // batch-select mode: taps toggle, dragging empty felt draws a marquee
     hover: null, // the stack under the cursor, for the one renderer that has a cursor
     pressedAt: -Infinity, // when the hand was last touched, for the tap's acknowledgement
-    aimAssist: true,
-    showHistory: true,
-    keepLayout: false,
+    // Both are lessons the tour turns on: the table starts with the bare puck, and the player sees
+    // the drift path and the landing law when they ask for them (or when the tour does).
+    aimAssist: false,
+    showHistory: false,
+    keepLayout: true, // carry the hand between rounds unless the player turns it off
     autoPlay: false,
+    autoContinue: false, // advance a settled round on its own, but do not bet for the player
     snapping: true,
     runLength: DEFAULT_RUN_LENGTH,
     endReason: null, // 'played-out' | 'ruined' once the run is over
     rounds: [], // settled rounds of this run
-    undo: [],
     // The glide that opens a round: `null` once it is over. See `nextRound`.
     transition: null, // {startedAt, from: [x, y], out: [{x, y, w}]}
     dealStarted: 0,
@@ -148,9 +159,11 @@ export function createGame(assets) {
   const lattice = () => latticeStep(state.eps, geometrySpan(), state.snapping);
   const footprint = () => discFootprint(state.eps, geometrySpan());
 
-  /** Drop a selection or a hover that no longer points at a stack (every mutating path calls it). */
+  /** Drop selected or hovered indices that no longer point at a stack (every mutating path calls it). */
   function clampCursors() {
-    if (state.selected !== null && state.selected >= state.stacks.length) state.selected = null;
+    state.selection = [...new Set(state.selection)]
+      .filter((index) => index >= 0 && index < state.stacks.length)
+      .sort((a, b) => a - b);
     if (state.hover !== null && state.hover >= state.stacks.length) state.hover = null;
   }
 
@@ -159,24 +172,19 @@ export function createGame(assets) {
     state.transition = null;
   }
 
-  function snapshot() {
-    state.undo.push({ stacks: clone(state.stacks), step: state.step, rounds: state.rounds.length });
-    if (state.undo.length > 50) state.undo.shift();
-    // Every edit that is not the quick layout itself goes through here, so this one line is the
-    // whole of "you changed it, so the button no longer means 'take it back'".
+  /**
+   * Mark the start of a hand edit.
+   *
+   * Undo is gone, so this no longer opens a history step; it only says that the hand is no longer
+   * the untouched output of a quick layout -- the button's second press would otherwise restore a
+   * hand the player has already changed.
+   */
+  function beginEdit() {
+    endGlide();
     state.presetApplied = null;
   }
 
-  /**
-   * Open one undo step for the gesture that is about to start.
-   *
-   * Called once per gesture, not once per event: dragging a stack emits a move on every pointer
-   * frame, and a dragged stack that cannot be undone (or that needs fifty undos to undo) is the
-   * kind of thing a player notices immediately.
-   */
-  function markEdit() {
-    snapshot();
-  }
+  const isSelected = (index) => state.selection.includes(index);
 
   /** Mark the hand as just touched: the shell turns this into a short scale on the stack. */
   function touch(now = 0) {
@@ -184,9 +192,12 @@ export function createGame(assets) {
     endGlide();
   }
 
-  function setStacks(stacks, { keepUndo = false } = {}) {
-    if (!keepUndo) snapshot();
+  function setStacks(stacks) {
     state.stacks = clone(stacks).filter((stack) => stack.w > 0);
+    // The new hand is not the old one, whatever the indices happen to mean; keeping a selection
+    // across a wholesale replacement would leave it pointing at different stacks.
+    state.selection = [];
+    state.hover = null;
     state.result = null;
     clampCursors();
   }
@@ -267,7 +278,6 @@ export function createGame(assets) {
     const kept = state.keepLayout && state.lastLayout ? state.lastLayout : [];
     const out = clone(state.stacks);
     state.rounds = [];
-    state.undo = [];
     state.step = 0;
     state.endReason = null;
     return beginRound(kept, { from, startedAt: now, out });
@@ -278,7 +288,8 @@ export function createGame(assets) {
     state.stacks = clone(stacks);
     state.landed = null;
     state.result = null;
-    state.selected = null;
+    state.selection = [];
+    state.hover = null;
     state.presetApplied = null;
     // A round only changes with a beat when the world stayed put: changing table, radius or run is
     // a new game and reads as one -- `selectTable` and friends call this bare.
@@ -307,6 +318,48 @@ export function createGame(assets) {
   }
 
   /**
+   * Hold a stack, or let it go.
+   *
+   * A second tap on the stack that is already held puts it down again. With `additive` (Shift, or
+   * Select mode) the index is toggled in the collection instead, which is what makes a group.
+   */
+  function toggleSelection(index, additive = false) {
+    if (state.phase !== 'bet' || index === null) return false;
+    if (additive) {
+      const at = state.selection.indexOf(index);
+      if (at === -1) state.selection.push(index);
+      else state.selection.splice(at, 1);
+      state.selection.sort((a, b) => a - b);
+    } else {
+      state.selection = state.selection.length === 1 && state.selection[0] === index
+        ? [] : [index];
+    }
+    return true;
+  }
+
+  function clearSelection() {
+    state.selection = [];
+  }
+
+  /** Replace (or extend) the selection with a marquee's result. */
+  function selectIndices(indices, additive = false) {
+    if (state.phase !== 'bet') return false;
+    const valid = [...new Set(indices)]
+      .filter((index) => Number.isInteger(index) && index >= 0 && index < state.stacks.length)
+      .sort((a, b) => a - b);
+    state.selection = additive
+      ? [...new Set([...state.selection, ...valid])].sort((a, b) => a - b)
+      : valid;
+    return valid.length > 0;
+  }
+
+  function toggleSelectMode() {
+    if (state.phase !== 'bet') return false;
+    state.selectMode = !state.selectMode;
+    return state.selectMode;
+  }
+
+  /**
    * Put a stack down where the player tapped.
    *
    * A tap resolves to a cell, and a cell belongs to one stack: if the resolved point lands in one
@@ -314,28 +367,26 @@ export function createGame(assets) {
    * does not merge, and it does not nudge: a stack's height only ever changes from the toolbar,
    * where the player can see what they are doing.
    *
-   * @returns {{placed: boolean, index: number|null}} `index` is the stack that owns the cell when
-   *   the placement was refused, so the caller can say what the tap meant instead.
-   */
-  /**
-   * Hold a stack, or let it go.
+   * A tap on bare felt while anything is selected (or while Select mode is on) **only closes the
+   * selection**. The player asked for the toolbar to go away, not for a new stack under the hand
+   * that was reaching for the edge of the screen.
    *
-   * A second tap on the stack that is already held puts it down again -- which is the only way to
-   * close the toolbar without reaching for the Move/Remove buttons you were trying to get rid of.
+   * @returns {{placed: boolean, index: number|null, dismissed?: boolean}} `index` is the stack
+   *   that owns the cell when the placement was refused; `dismissed` says the tap was consumed by
+   *   closing the selection.
    */
-  function toggleSelection(index) {
-    if (state.phase !== 'bet' || index === null) return false;
-    state.selected = state.selected === index ? null : index;
-    return true;
-  }
-
   function placeStack(point, now = 0) {
     if (state.phase !== 'bet') return { placed: false, index: null };
     const base = predicted();
     const snapped = snapPoint(point);
     const taken = stackAt(snapped);
     if (taken !== null) return { placed: false, index: taken };
-    snapshot(); // one placement, one undo -- this used to record nothing unless the table was bare
+    if (state.selectMode || state.selection.length > 0) {
+      state.selection = [];
+      state.result = null;
+      return { placed: false, index: null, dismissed: true };
+    }
+    beginEdit();
     state.stacks.push({
       x: to(snapped[0] - base[0], 9),
       y: to(snapped[1] - base[1], 9),
@@ -343,22 +394,46 @@ export function createGame(assets) {
     });
     state.result = null;
     // A new stack is not the held one: its toolbar would cover the thing the player just put down.
-    state.selected = null;
+    state.selection = [];
     touch(now);
     return { placed: true, index: state.stacks.length - 1 };
   }
 
-  /** Carry a stack to a new cell. A cell that belongs to somebody else is not a place to land. */
+  /** The stacks a drag on `index` carries: the whole selection if it is part of a group. */
+  function movingGroup(index) {
+    return state.selection.includes(index) && state.selection.length > 1
+      ? state.selection.slice() : [index];
+  }
+
+  /**
+   * Carry a stack to a new cell -- and the whole selection with it when it is part of one.
+   *
+   * A cell that belongs to somebody else is not a place to land. The group moves rigidly, so its
+   * internal distances cannot change; the only thing to check is every destination against every
+   * stack *outside* the group. If one of them is taken, the whole move is refused: a half-moved
+   * selection is worse than no move at all, because the player cannot see which half failed.
+   */
   function moveStack(index, point) {
     if (state.phase !== 'bet' || !state.stacks[index]) return false;
     const base = predicted();
     const snapped = snapPoint(point);
-    const x = to(snapped[0] - base[0], 9);
-    const y = to(snapped[1] - base[1], 9);
-    const taken = nearestIndex([base[0] + x, base[1] + y], resting(), footprint());
-    if (taken !== null && taken !== index) return false;
-    state.stacks[index].x = x;
-    state.stacks[index].y = y;
+    const dx = to(snapped[0] - (base[0] + state.stacks[index].x), 9);
+    const dy = to(snapped[1] - (base[1] + state.stacks[index].y), 9);
+    if (dx === 0 && dy === 0) return false;
+    const group = movingGroup(index);
+    const moving = new Set(group);
+    const others = state.stacks
+      .filter((_, at) => !moving.has(at))
+      .map((stack) => restingAt(stack, base));
+    for (const at of group) {
+      const stack = state.stacks[at];
+      const destination = [base[0] + stack.x + dx, base[1] + stack.y + dy];
+      if (nearestIndex(destination, others, footprint()) !== null) return false;
+    }
+    for (const at of group) {
+      state.stacks[at].x = to(state.stacks[at].x + dx, 9);
+      state.stacks[at].y = to(state.stacks[at].y + dy, 9);
+    }
     touch();
     return true;
   }
@@ -370,8 +445,8 @@ export function createGame(assets) {
    * are shown. So raising one stack lowers everybody else's share on screen, exactly, with no
    * bookkeeping to get out of step with the geometry.
    *
-   * No undo step of its own: a slider emits a value per pixel, and one drag is one change. The
-   * caller opens the step (`markEdit`) when the gesture starts.
+   * A slider emits a value per pixel, so this only writes the number; the shell marks the gesture
+   * as an edit when it starts.
    */
   function setStackWeight(index, weight) {
     const stack = state.stacks[index];
@@ -383,12 +458,39 @@ export function createGame(assets) {
     return true;
   }
 
-  /** One press of a −/＋ button: a step, not a drag, so it records its own undo. */
+  /** Set every selected stack to the same weight -- what the toolbar's slider means for a group. */
+  function setSelectionWeight(weight) {
+    if (state.phase !== 'bet' || state.selection.length === 0) return false;
+    const next = Math.min(WEIGHT_CEILING, Math.max(WEIGHT_MIN, weight));
+    let changed = false;
+    for (const index of state.selection) {
+      if (state.stacks[index].w === next) continue;
+      state.stacks[index].w = next;
+      changed = true;
+    }
+    if (changed) state.result = null;
+    return changed;
+  }
+
+  /** One press of a −/＋ button: a step, not a drag. */
   function nudgeWeight(index, factor) {
     const stack = state.stacks[index];
     if (!stack || state.phase !== 'bet') return false;
-    snapshot();
+    beginEdit();
     stack.w = Math.min(WEIGHT_CEILING, Math.max(WEIGHT_MIN, stack.w * factor));
+    state.result = null;
+    touch();
+    return true;
+  }
+
+  /** The same step for every selected stack, multiplied independently and clamped individually. */
+  function nudgeSelection(factor) {
+    if (state.phase !== 'bet' || state.selection.length === 0) return false;
+    beginEdit();
+    for (const index of state.selection) {
+      const stack = state.stacks[index];
+      stack.w = Math.min(WEIGHT_CEILING, Math.max(WEIGHT_MIN, stack.w * factor));
+    }
     state.result = null;
     touch();
     return true;
@@ -396,25 +498,27 @@ export function createGame(assets) {
 
   function removeStack(index) {
     if (!state.stacks[index] || state.phase !== 'bet') return false;
-    snapshot();
+    beginEdit();
     state.stacks.splice(index, 1);
-    state.selected = null;
+    state.selection = state.selection
+      .filter((at) => at !== index)
+      .map((at) => (at > index ? at - 1 : at));
     state.hover = null;
     state.result = null;
     touch();
     return true;
   }
 
-  function undo() {
-    const last = state.undo.pop();
-    if (!last) return false;
-    state.stacks = clone(last.stacks);
-    state.rounds = state.rounds.slice(0, last.rounds);
-    state.selected = null;
+  /** Remove every selected stack in one pass. */
+  function removeSelection() {
+    if (state.phase !== 'bet' || state.selection.length === 0) return false;
+    beginEdit();
+    const moving = new Set(state.selection);
+    state.stacks = state.stacks.filter((_, index) => !moving.has(index));
+    state.selection = [];
     state.hover = null;
     state.result = null;
-    state.presetApplied = null;
-    endGlide();
+    touch();
     return true;
   }
 
@@ -661,6 +765,9 @@ export function createGame(assets) {
       ? Math.min(1, (now - state.settledAt) / SETTLE_MS) : 0;
     const throwT = state.phase === 'bet' ? 0 : Math.min(1, (now - state.dealStarted) / THROW_MS);
     const pressT = Math.min(1, (now - state.pressedAt) / PRESS_MS);
+    // One switch, two drawings: the prediction is the point, and the support is where the law says
+    // it can land. They are the same question asked at two scales, so they rise and fall together.
+    const support = state.aimAssist ? supportShape(preset()) : null;
     return {
       presetKey: state.presetKey,
       span,
@@ -684,7 +791,7 @@ export function createGame(assets) {
         height: stackHeight(stack.w, radius),
         state: state.result && state.result.perStack
           ? (state.result.perStack[index] ? 'hit' : 'miss') : 'bet',
-        selected: state.selected === index,
+        selected: isSelected(index),
         hover: state.phase === 'bet' && state.hover === index,
         pressT: Math.sin(Math.PI * Math.min(1, Math.max(0, pressT))) || 0,
       })),
@@ -692,6 +799,11 @@ export function createGame(assets) {
       ball: ballAt(here(), state.landed, throwT, span),
       throwT,
       settleT,
+      // The noise's support is a property of the *law*, but it is drawn around the nominal next
+      // state -- so showing it while the prediction is hidden would hand back the point the player
+      // asked not to see. One switch decides both, exactly like the history's noise dots.
+      support: support === null ? null : { ...support, anchor: base },
+      selectMode: state.selectMode,
       history: {
         show: state.showHistory,
         // Where the past draws are re-centred: this round's prediction, or nowhere at all. The
@@ -752,7 +864,6 @@ export function createGame(assets) {
     state.eps = table.epsilons[Math.min(1, table.epsilons.length - 1)];
     state.runIndex = 0;
     state.rounds = [];
-    state.undo = [];
     state.lastLayout = null;
     state.step = 0;
     return beginRound([]);
@@ -767,7 +878,6 @@ export function createGame(assets) {
   function setEps(eps) {
     state.eps = eps;
     state.rounds = [];
-    state.undo = [];
     state.lastLayout = null;
     state.step = 0;
     return beginRound([]);
@@ -776,7 +886,6 @@ export function createGame(assets) {
   function selectRun(index) {
     state.runIndex = index;
     state.rounds = [];
-    state.undo = [];
     state.lastLayout = null;
     state.step = 0;
     return beginRound([]);
@@ -787,14 +896,30 @@ export function createGame(assets) {
     return state.snapping;
   }
 
+  function toggleAutoContinue() {
+    state.autoContinue = !state.autoContinue;
+    return state.autoContinue;
+  }
+
+  /** Whether a settled round should move on by itself, right now. */
+  function shouldAutoContinue(now = 0) {
+    return state.autoContinue
+      && !state.autoPlay
+      && state.phase === 'settled'
+      && now - state.settledAt >= AUTO_CONTINUE_MS;
+  }
+
   return {
     state, assets, preset, here, predicted, landingAt, stepCount,
-    placeStack, moveStack, setStackWeight, nudgeWeight, removeStack, undo, markEdit,
-    snapPoint, stackAt, lattice, footprint, touch, toggleSelection,
+    placeStack, moveStack, setStackWeight, nudgeWeight, removeStack,
+    setSelectionWeight, nudgeSelection, removeSelection,
+    toggleSelection, clearSelection, selectIndices, toggleSelectMode,
+    snapPoint, stackAt, lattice, footprint, touch, beginEdit,
     coverTable, evenGrid, sameAsLastRound, applyPreset, presetIsOn, clearStacks,
     deal, settle, nextRound, restart, atEnd,
     safety, scores, view, bets, runLog, lastRound, runSummary,
     selectTable, setEps, selectRun, setRunLength, toggleSnapping,
+    toggleAutoContinue, shouldAutoContinue,
   };
 }
 
@@ -865,9 +990,13 @@ export async function boot() {
   let scene = surfaces.scene3d === null ? surfaces.flat : surfaces.scene3d;
   let autoPlayTimer = null;
   let hoverIndex = null;
-  let moveMode = null;      // the stack the "Move" button is relocating
   let restartArmed = 0;     // when the restart button first said "Sure?"
-  let coachUntil = 0;       // a transient line under the badge
+  let clearArmed = 0;       // when Clear first said "Sure?"
+  let removeArmed = 0;      // when a batch Remove first said "Sure?"
+  let tour = createTutorial({ enabled: true }); // session-only: every visit starts it again
+  // Facts the tour's gates need and the table cannot supply: a height was edited, a deal was
+  // pressed, a round was started. A step already done stays done when the player goes back.
+  let tourFacts = { heightChanged: false, deals: 0, nextRounds: 0 };
 
   // -- the HUD ------------------------------------------------------------------------------
 
@@ -876,13 +1005,6 @@ export async function boot() {
     return Number.isFinite(value) ? value.toFixed(places) : '−∞';
   };
   const pct = (value) => (value === null ? '—' : `${(value * 100).toFixed(1)}%`);
-
-  function coach(text, ms = 4000) {
-    if (text === null) { coachUntil = 0; return; }
-    $('announcement').textContent = text;
-    $('announcement').className = 'announce';
-    coachUntil = performance.now() + ms;
-  }
 
   function refreshCard() {
     const preset = game.preset();
@@ -921,7 +1043,9 @@ export async function boot() {
     $('showHistory').checked = state.showHistory;
     $('keepLayout').checked = state.keepLayout;
     $('autoPlay').checked = state.autoPlay;
+    $('autoContinue').checked = state.autoContinue;
     $('snap').checked = state.snapping;
+    $('teaching').checked = tour.enabled;
 
     const label = state.phase === 'over' ? 'Play again'
       : (state.phase === 'settled' ? 'Next round' : 'Deal');
@@ -931,12 +1055,22 @@ export async function boot() {
     // second copy is a second thing to keep in step -- and the whole point of the stage carrying
     // Deal is that the player never has to open the panel to play on.
     $('stageDeal').textContent = label;
+    // The icon is a CSS `::before`, selected by this attribute: `textContent` is rewritten above
+    // and again every refresh, so anything put inside the button would be wiped by the next one.
+    $('stageDeal').dataset.act = state.phase === 'over' ? 'again'
+      : (state.phase === 'settled' ? 'next' : 'deal');
     $('stageDeal').disabled = state.phase === 'dealing' || idle;
+    $('stageDeal').classList.toggle('ready', state.phase === 'settled');
+    stage.dataset.phase = state.phase;
+    stage.dataset.select = state.selectMode ? 'on' : 'off';
 
     const placing = state.phase === 'bet';
-    $('undo').disabled = state.undo.length === 0 || spent;
     $('sameAsLast').disabled = state.lastLayout === null || !placing;
-    $('stageRestart').disabled = spent;
+    $('selectMode').disabled = !placing;
+    $('selectMode').classList.toggle('on', state.selectMode);
+    $('selectMode').setAttribute('aria-pressed', state.selectMode ? 'true' : 'false');
+    $('restartRun').disabled = spent;
+    $('autoContinue').disabled = state.autoPlay;
     // Which quick layout the table is holding, if it is still holding it: the button says so, so
     // that "press it again to take it back" is a thing you can see rather than a thing you know.
     [['coverTable', 'cover'], ['evenGrid', 'grid'], ['sameAsLast', 'last']].forEach(([id, name]) => {
@@ -944,9 +1078,16 @@ export async function boot() {
       $(id).classList.toggle('on', on);
       $(id).setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    if (performance.now() - restartArmed > 4000) {
+    if (restartArmed && performance.now() - restartArmed > 4000) {
       restartArmed = 0;
-      $('stageRestart').textContent = 'Restart';
+      $('restartRun').textContent = 'Restart run';
+    }
+    if (clearArmed && performance.now() - clearArmed > 4000) {
+      clearArmed = 0;
+      $('clearLabel').textContent = 'Clear';
+    }
+    if (removeArmed && performance.now() - removeArmed > 4000) {
+      removeArmed = 0;
     }
     // The two generated layouts are placed *around the prediction*, so offering them while the
     // prediction is hidden would be handing over the answer the player chose not to see -- and on a
@@ -955,12 +1096,20 @@ export async function boot() {
     $('coverTable').disabled = !placing || state.eps <= 0 || !state.aimAssist || sealed;
     $('evenGrid').disabled = !placing || state.eps <= 0 || !state.aimAssist;
     $('clear').disabled = !placing || state.stacks.length === 0;
-    $('emptyBet').hidden = state.stacks.length > 0 || state.phase !== 'bet';
+    // Two hints that say the same thing at the same time is one hint too many: the tour is already
+    // talking, and a player who has just pressed Skip has said they do not want to be talked at.
+    $('emptyBet').hidden = state.stacks.length > 0 || state.phase !== 'bet'
+      || Boolean(tutorialStep(tour)) || !tour.enabled;
+    // The Gaussian's ellipse is a chosen window, not a support; the caption says so outside the
+    // canvas, where it cannot be mistaken for part of the table.
+    const support = game.view(performance.now()).support;
+    $('supportNote').hidden = !(support && support.kind === 'ellipse');
+    $('supportNote').textContent = support && support.kind === 'ellipse' ? support.label : '';
 
     $('digestRun').textContent = `${state.runLength} rounds · ε ${state.eps} · Run ${state.runIndex + 1}`;
     $('digestMoves').textContent = state.stacks.length === 0
       ? 'nothing on the table' : `${state.stacks.length} stacks`;
-    // Why "Cover the table" is off, when it is: it is built around the prediction, and on a table
+    // Why "Cover the noise support" is off, when it is: it is built around the prediction, and on a table
     // that keeps its law it would be built out of the very thing that is hidden. The reason lives
     // on the button rather than in a paragraph somewhere else.
     $('coverTableHelp').dataset.help = sealed
@@ -1026,11 +1175,24 @@ export async function boot() {
       $('stackList').innerHTML = '';
     }
 
-    const selected = game.state.selected;
-    $('stackTools').hidden = selected === null || game.state.phase !== 'bet';
-    if (selected !== null && stacks[selected]) {
-      $('stackShare').textContent = `${(parts[selected] * 100).toFixed(1)}%`;
-      $('stackWeight').value = String(sliderFromWeight(stacks[selected].w));
+    const selected = game.state.selection;
+    const showing = selected.length > 0 && game.state.phase === 'bet';
+    $('stackTools').hidden = !showing;
+    $('stackTools').classList.toggle('multi', selected.length > 1);
+    if (showing) {
+      const combined = selected.reduce((sum, index) => sum + (parts[index] || 0), 0);
+      $('stackShare').textContent = selected.length === 1
+        ? `${(combined * 100).toFixed(1)}%`
+        : `${selected.length} stacks · ${(combined * 100).toFixed(1)}%`;
+      // A group has no single weight; the last stack selected is the one the slider speaks for,
+      // and moving it sets every selected stack to the same number.
+      const anchor = stacks[Math.max(...selected)];
+      if (anchor) $('stackWeight').value = String(sliderFromWeight(anchor.w));
+      $('stackRemove').textContent = selected.length === 1
+        ? 'Remove'
+        : (removeArmed ? `Sure? Remove ${selected.length}` : `Remove ${selected.length}`);
+    } else {
+      removeArmed = 0;
     }
 
     // The badge is a label, not a paragraph: one line, and the sentence that explains it lives
@@ -1047,7 +1209,7 @@ export async function boot() {
       badge.textContent = game.state.eps > 0 ? 'No verdict yet' : 'Every hand scores −∞';
       badge.className = 'badge';
       badgeHelp.dataset.help = game.state.eps > 0
-        ? 'Put stacks down and this says what they guarantee. “Cover the table” lays equal stacks '
+        ? 'Put stacks down and this says what they guarantee. “Cover the noise support” lays equal stacks '
           + 'so that no landing can pay nothing.'
         : 'With ε = 0 no hand can guarantee anything: a landing has to be exactly on a stack, so '
           + 'every round scores −∞. Try a neighbourhood.';
@@ -1088,6 +1250,161 @@ export async function boot() {
     refreshCard();
     refreshControls();
     refreshScores();
+    // The tour's Next is a verdict on the table, so every change to the table re-reads it.
+    renderTour();
+  }
+
+  // -- the first-visit tour --------------------------------------------------------------------
+
+  function resetTourFacts() {
+    tourFacts = { heightChanged: false, deals: 0, nextRounds: 0 };
+  }
+
+  /** Tell the tour what just happened. Gating itself is derived in `renderTour`. */
+  function noteTour(event) {
+    if (!tutorialStep(tour)) return;
+    if (event === 'weight-change') tourFacts.heightChanged = true;
+    else if (event === 'deal') tourFacts.deals += 1;
+    else if (event === 'next-round') tourFacts.nextRounds += 1;
+    else return;
+    // The last step does not wait for a click on the card: doing what it asks ends the tour, and a
+    // card that lingers after the player has moved on is one more thing to dismiss.
+    const context = tourContext();
+    if (tour.index === TOUR_STEPS.length - 1 && tutorialReady(tour, context)) {
+      tour = tutorialNext(tour, context);
+    }
+    renderTour();
+  }
+
+  /** The table, as the tour's gates read it. */
+  function tourContext() {
+    const safety = game.safety();
+    return {
+      prediction: game.state.aimAssist,
+      stacks: game.state.stacks.length,
+      // "The badge stopped warning": on a bounded table that means safe; a Gaussian or a table
+      // that keeps its law has no worst case to guarantee, and its badge is not a warning either.
+      safe: game.state.stacks.length > 0
+        && safety.kind !== 'no-neighbourhood'
+        && (safety.kind !== 'bounded' || safety.safe),
+      heightChanged: tourFacts.heightChanged,
+      deals: tourFacts.deals,
+      nextRounds: tourFacts.nextRounds,
+    };
+  }
+
+  function renderTour() {
+    const step = tutorialStep(tour);
+    $('tour').hidden = step === null;
+    if (step === null) { positionTour(); return; }
+    $('tourText').textContent = step.text;
+    $('tourStep').textContent = `${tour.index + 1} / ${TOUR_STEPS.length}`;
+    const ready = tutorialReady(tour, tourContext());
+    const next = $('tourNext');
+    next.disabled = !ready;
+    next.title = ready ? 'Next step' : 'Do this step first';
+    $('tourBack').disabled = tour.index === 0;
+    positionTour();
+  }
+
+  /**
+   * Pin the bubble to the table's lower-left corner, just above the dock.
+   *
+   * It used to follow each step's anchor. That read well as a coach mark and badly as a picture:
+   * the steps talk about the felt, the hand and the toolbar, so the bubble spent its life sitting
+   * on one of them. A corner is never one of the things a step is talking about, and the lower-left
+   * is the part of the table a hand does not need -- the dock's controls are below it, and the play
+   * happens in the middle.
+   */
+  /** A viewport rect for an element that is actually on screen, or `null`. */
+  function rectOf(el) {
+    if (!el || el.hidden) return null;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 || rect.height > 0 ? rect : null;
+  }
+
+  /**
+   * Where the arrow points: the control a control step is about, or the prediction marker for the
+   * felt steps (the spot the stacks are placed around).
+   */
+  function tourTarget(step, stageRect) {
+    if (step.target === 'prediction') {
+      // From the left rather than above: the pill sits at the top of the table, and an arrow
+      // above it would hang over the header -- outside the stage, and outside the demo recording's
+      // crop. To the left is inside the table and reads the same way.
+      const rect = rectOf($('predictionPill'));
+      if (rect) return { arrow: rect, side: 'left' };
+    } else if (step.target === 'deal') {
+      // The arrow belongs to the *action* a step is asking for. Once Deal has been pressed the
+      // same button becomes Next round, so the deal step drops its arrow until the player presses
+      // the card's Next: otherwise the arrow jumps to Next round before the tour says so.
+      if (step.id === 'deal' && game.state.phase !== 'bet') return null;
+      // The button is at the bottom of the dock; an arrow above it would sit on Clear, so it comes
+      // in from the left instead.
+      const rect = rectOf($('stageDeal'));
+      if (rect) return { arrow: rect, side: 'left' };
+    }
+    const point = game.predicted();
+    const at = point
+      ? scene.projectAt(point)
+      : { x: stageRect.width / 2, y: stageRect.height / 2 };
+    return {
+      arrow: { left: stageRect.left + at.x, top: stageRect.top + at.y, width: 0, height: 0 },
+      side: 'above',
+    };
+  }
+
+  /** The bouncing arrow points at the target from the side that has room for it. */
+  function placeArrow(anchor, side) {
+    const arrow = $('tourArrow');
+    const ownW = arrow.offsetWidth || 30;
+    const ownH = arrow.offsetHeight || 30;
+    arrow.dataset.dir = side;
+    if (side === 'left') {
+      arrow.textContent = '→';
+      arrow.style.left = `${Math.max(4, anchor.left - ownW - 8)}px`;
+      arrow.style.top = `${Math.max(4, anchor.top + anchor.height / 2 - ownH / 2)}px`;
+      return;
+    }
+    arrow.textContent = '↓';
+    const centre = anchor.left + (anchor.width || 0) / 2;
+    arrow.style.left = `${Math.max(4,
+      Math.min(window.innerWidth - ownW - 4, centre - ownW / 2))}px`;
+    arrow.style.top = `${Math.max(4, anchor.top - ownH - 6)}px`;
+  }
+
+  /**
+   * Pin the bubble to the table's lower-left corner, just above the dock, and point the arrow at
+   * the one thing the step is about.
+   *
+   * It used to follow each step's anchor. That read well as a coach mark and badly as a picture:
+   * the steps talk about the felt, the hand and the toolbar, so the bubble spent its life sitting
+   * on one of them. A corner is never one of the things a step is talking about, and the lower-left
+   * is the part of the table a hand does not need -- the dock's controls are below it, and the play
+   * happens in the middle.
+   *
+   * The arrow is guidance, not a gate: the page stays usable, and only the card's Next waits for
+   * the step's action. (A dimming spotlight used to do the pointing too; it made the table read as
+   * a modal, so it is gone.)
+   */
+  function positionTour() {
+    const step = tutorialStep(tour);
+    const arrow = $('tourArrow');
+    const active = step !== null;
+    arrow.hidden = !active;
+    if (!active) { $('tour').hidden = true; return; }
+
+    const box = $('tour');
+    const stageRect = stage.getBoundingClientRect();
+    const dockRect = $('dock').getBoundingClientRect();
+    const own = { width: box.offsetWidth || 300, height: box.offsetHeight || 120 };
+    const spot = tourSpot(stageRect, dockRect, own, 12);
+    box.style.left = `${spot.left}px`;
+    box.style.top = `${spot.top}px`;
+
+    const target = tourTarget(step, stageRect);
+    if (target === null) { arrow.hidden = true; return; }
+    placeArrow(target.arrow, target.side);
   }
 
   // -- what sits on top of the table --------------------------------------------------------
@@ -1125,22 +1442,50 @@ export async function boot() {
     });
 
     const tools = $('stackTools');
-    if (!tools.hidden && view.stacks[view.stacks.length - 1] !== undefined) {
-      const index = game.state.selected;
-      if (index !== null && view.stacks[index]) {
-        const stack = view.stacks[index];
-        const at = scene.projectAt(stack.at, stack.height);
-        const own = { width: tools.offsetWidth || 300, height: tools.offsetHeight || 56 };
-        const size = { width: stage.clientWidth, height: stage.clientHeight };
-        const spot = placeToolbar(at, own, size);
-        tools.style.transform = `translate(${spot.x}px, ${spot.y}px)`;
-      }
+    const chosen = game.state.selection
+      .map((index) => view.stacks[index])
+      .filter(Boolean);
+    if (!tools.hidden && chosen.length > 0) {
+      // One toolbar for the whole group: anchor it over the middle of what is selected, at the
+      // height of the tallest tower in it, so it does not sit inside a stack.
+      const spots = chosen.map((stack) => scene.projectAt(stack.at, stack.height));
+      const at = {
+        x: spots.reduce((sum, spot) => sum + spot.x, 0) / spots.length,
+        y: Math.min(...spots.map((spot) => spot.y)),
+      };
+      const own = { width: tools.offsetWidth || 300, height: tools.offsetHeight || 56 };
+      const size = { width: stage.clientWidth, height: stage.clientHeight };
+      const spot = placeToolbar(at, own, size);
+      tools.style.transform = `translate(${spot.x}px, ${spot.y}px)`;
     }
   }
 
   // -- the loop ------------------------------------------------------------------------------
 
+  /** Reset a two-press confirmation that was left alone. Called from the frame loop so an idle
+   *  page does not sit on "Sure?" forever. */
+  function tickArmed(now) {
+    if (restartArmed && now - restartArmed > 4000) {
+      restartArmed = 0;
+      $('restartRun').textContent = 'Restart run';
+    }
+    if (clearArmed && now - clearArmed > 4000) {
+      clearArmed = 0;
+      $('clearLabel').textContent = 'Clear';
+    }
+    if (removeArmed && now - removeArmed > 4000) {
+      removeArmed = 0;
+      refreshScores();
+    }
+  }
+
   function frame(now) {
+    tickArmed(now);
+    if (game.shouldAutoContinue(now) && $('guide').hidden) {
+      game.nextRound(now);
+      noteTour('next-round');
+      refresh();
+    }
     const view = game.view(now);
     if (game.state.phase === 'dealing' && view.throwT >= 1) {
       announce(game.settle(now));
@@ -1148,15 +1493,16 @@ export async function boot() {
     }
     scene.render(view);
     positionOverlays(view);
-    if (coachUntil && now > coachUntil) { coachUntil = 0; $('announcement').textContent = ''; }
+    positionTour();
     requestAnimationFrame(frame);
   }
 
   function announce(result) {
-    if (!result || coachUntil) return;
+    if (!result) return;
     const line = $('announcement');
     if (result.hit > 0) {
-      line.textContent = `${(result.roi * 100).toFixed(1)}% of the hand paid.`;
+      const next = game.state.phase === 'settled' ? ' Next round when you are ready.' : '';
+      line.textContent = `${(result.roi * 100).toFixed(1)}% of the hand paid.${next}`;
       line.className = 'announce ok';
     } else if (result.total > 0) {
       line.textContent = 'Nothing landed. Every stack missed, and the run ends here.';
@@ -1190,18 +1536,35 @@ export async function boot() {
     return game.stackAt(game.snapPoint(point));
   }
 
-  function setMoveMode(index) {
-    moveMode = index;
-    $('stackMove').textContent = index === null ? 'Move' : 'Cancel move';
-    if (index === null) coach(null);
-    else coach('Tap where the stack should go.');
+  // -- the box selection -----------------------------------------------------------------------
+
+  function showMarquee(rect) {
+    const box = $('marquee');
+    const left = Math.min(rect.x0, rect.x1);
+    const top = Math.min(rect.y0, rect.y1);
+    box.hidden = false;
+    box.style.left = `${left}px`;
+    box.style.top = `${top}px`;
+    box.style.width = `${Math.abs(rect.x1 - rect.x0)}px`;
+    box.style.height = `${Math.abs(rect.y1 - rect.y0)}px`;
+  }
+
+  function hideMarquee() {
+    $('marquee').hidden = true;
+  }
+
+  function finishMarquee(rect, additive) {
+    const view = game.view(performance.now());
+    const points = view.stacks.map((stack) => scene.projectAt(stack.at, stack.height));
+    game.selectIndices(indicesInRect(rect, points), additive);
+    hideMarquee();
+    refresh();
   }
 
   function wireStage() {
     const gesture = createGestureState();
-    let timer = null;
     let pinchBase = null;
-    let dragFrom = null;
+    let dragFrom = null;      // [{index, x, y}] the moving group's offsets when the drag began
     let lastPoint = { x: 0, y: 0 };
 
     const worldAt = (point) => scene.pick(point.x, point.y);
@@ -1210,18 +1573,23 @@ export async function boot() {
       return world === null ? null : stackUnder(world, touch);
     };
 
+    function movingGroup(index) {
+      return game.state.selection.includes(index) && game.state.selection.length > 1
+        ? game.state.selection.slice() : [index];
+    }
+
     function act(action, point) {
       switch (action.kind) {
         case 'select':
           // Selecting works on a table that keeps its law too: what is hidden is the *noise*, and
           // holding a stack is not information about it. A second tap on the held stack lets it go.
-          game.toggleSelection(action.index);
+          game.toggleSelection(action.index, Boolean(action.additive));
           refresh();
           break;
         case 'drag-start':
-          dragFrom = game.state.stacks[action.index]
-            ? { x: game.state.stacks[action.index].x, y: game.state.stacks[action.index].y } : null;
-          game.markEdit();
+          dragFrom = movingGroup(action.index)
+            .map((index) => ({ index, ...game.state.stacks[index] }));
+          game.beginEdit();
           break;
         case 'drag': {
           const world = worldAt(point);
@@ -1229,11 +1597,33 @@ export async function boot() {
           break;
         }
         case 'release':
-          if (dragFrom && game.state.stacks[action.index]) {
-            game.state.stacks[action.index] = { ...game.state.stacks[action.index], ...dragFrom };
+          if (dragFrom) {
+            for (const saved of dragFrom) {
+              if (game.state.stacks[saved.index]) {
+                game.state.stacks[saved.index].x = saved.x;
+                game.state.stacks[saved.index].y = saved.y;
+              }
+            }
             refreshScores();
           }
           dragFrom = null;
+          break;
+        case 'marquee-start':
+          showMarquee(action.rect);
+          break;
+        case 'marquee':
+          showMarquee(action.rect);
+          break;
+        case 'marquee-end':
+          finishMarquee(action.rect, false);
+          break;
+        case 'marquee-cancel':
+          hideMarquee();
+          break;
+        case 'clear-selection':
+          game.clearSelection();
+          hideMarquee();
+          refresh();
           break;
         case 'orbit':
           scene.orbit(action.dx, action.dy);
@@ -1248,17 +1638,16 @@ export async function boot() {
           if (action.index !== null) break;
           const world = worldAt(point);
           if (world === null) break;
-          if (moveMode !== null) {
-            game.markEdit();
-            game.moveStack(moveMode, world);
-            setMoveMode(null);
-          } else if (game.state.phase === 'bet') {
+          if (game.state.phase === 'bet') {
             if (game.state.autoPlay) setAutoPlay(false);
             // A cell belongs to one stack. If this tap resolved into a taken one, the tap is about
             // that stack -- so hold it (or let it go, if it was already held), which is also the
-            // only way a tap never lands on top of something.
+            // only way a tap never lands on top of something. A tap on bare felt while anything is
+            // selected only closes the selection (see `placeStack`).
             const outcome = game.placeStack(world, performance.now());
-            if (!outcome.placed && outcome.index !== null) game.toggleSelection(outcome.index);
+            if (!outcome.placed && outcome.index !== null) {
+              game.toggleSelection(outcome.index, game.state.selectMode);
+            }
           }
           refresh();
           break;
@@ -1298,18 +1687,9 @@ export async function boot() {
       const action = pointerDown(gesture, {
         id: event.pointerId, x: lastPoint.x, y: lastPoint.y,
         touch: event.pointerType !== 'mouse', hit: hitAt(lastPoint, event.pointerType !== 'mouse'),
+        shift: Boolean(event.shiftKey), selectMode: game.state.selectMode,
       });
-      clearTimeout(timer);
       if (gesture.mode === 'pinch') pinchBase = null;
-      else if (gesture.mode === 'pending' && gesture.target !== null) {
-        timer = setTimeout(() => {
-          const fired = longPress(gesture);
-          if (fired.kind === 'remove' && game.state.phase === 'bet') {
-            game.removeStack(fired.index);
-            refresh();
-          }
-        }, LONGPRESS_MS);
-      }
       act(action, lastPoint);
     });
 
@@ -1317,7 +1697,6 @@ export async function boot() {
       const point = pointerPoint(event);
       lastPoint = point;
       const action = pointerMove(gesture, { id: event.pointerId, x: point.x, y: point.y });
-      if (!stillTapping(gesture)) clearTimeout(timer);
       act(action, point);
       trackHover(event, point);
     });
@@ -1333,16 +1712,14 @@ export async function boot() {
 
     stage.addEventListener('pointerup', (event) => {
       const point = pointerPoint(event);
-      clearTimeout(timer);
       pinchBase = null;
       act(pointerUp(gesture, { id: event.pointerId, x: point.x, y: point.y }), point);
       stage.releasePointerCapture?.(event.pointerId);
     });
 
     // A touch the system takes away (a notification, an edge gesture) must not leave a stack
-    // halfway across the table.
+    // halfway across the table or a marquee on screen.
     stage.addEventListener('pointercancel', (event) => {
-      clearTimeout(timer);
       pinchBase = null;
       act(pointerCancel(gesture, { id: event.pointerId }), pointerPoint(event));
     });
@@ -1366,24 +1743,81 @@ export async function boot() {
   function primaryAction() {
     const { state } = game;
     const now = performance.now();
-    if (state.phase === 'over') game.restart(now);
-    else if (state.phase === 'settled') game.nextRound(now);
-    else game.deal(now);
-    setMoveMode(null);
+    if (state.phase === 'over') {
+      game.restart(now);
+      $('announcement').textContent = '';
+    } else if (state.phase === 'settled') {
+      game.nextRound(now);
+      // The sentence was about the round just settled; it is not a caption for the new one.
+      $('announcement').textContent = '';
+      noteTour('next-round');
+    } else if (game.deal(now)) {
+      $('announcement').textContent = '';
+      noteTour('deal');
+    }
     refresh();
   }
 
   function onRestart() {
     const now = performance.now();
-    if (now - restartArmed > 4000) {
+    if (!restartArmed || now - restartArmed > 4000) {
       restartArmed = now;
-      $('stageRestart').textContent = 'Sure? Drops the run';
+      $('restartRun').textContent = 'Sure? Drops the run';
       return;
     }
     restartArmed = 0;
-    $('stageRestart').textContent = 'Restart';
-    setMoveMode(null);
+    $('restartRun').textContent = 'Restart run';
     game.restart(now);
+    refresh();
+  }
+
+  /** Clear the table, but ask first: there is no undo any more. */
+  function onClear() {
+    const now = performance.now();
+    if (!clearArmed || now - clearArmed > 4000) {
+      clearArmed = now;
+      $('clearLabel').textContent = 'Sure? Clears the table';
+      return;
+    }
+    clearArmed = 0;
+    $('clearLabel').textContent = 'Clear';
+    game.clearStacks();
+    refresh();
+  }
+
+  /** Remove the selection; a group asks first, a single stack does not. */
+  function onRemove() {
+    const count = game.state.selection.length;
+    if (count === 0) return;
+    if (count > 1) {
+      const now = performance.now();
+      if (!removeArmed || now - removeArmed > 4000) {
+        removeArmed = now;
+        $('stackRemove').textContent = `Sure? Remove ${count}`;
+        return;
+      }
+    }
+    removeArmed = 0;
+    game.removeSelection();
+    refresh();
+  }
+
+  /**
+   * The toolbar follows the hand, so a click anywhere else is the player putting it down.
+   *
+   * This listens on the document, in the bubble phase, so the control that was clicked has already
+   * done its job; `#stackTools` stops its own clicks from reaching here (see `wireControls`). A
+   * canvas click is left to the core: `placeStack` knows the difference between "close the
+   * selection" and "put a stack here".
+   */
+  function dismissSelectionFromClick(event) {
+    // Pointer capture retargets the click that follows a canvas gesture to `#stage` itself, so a
+    // marquee would be cleared the instant it finished. Both the stage and its canvases are the
+    // table; everything else -- the switches, the dock, the panel -- is a control.
+    if (event.target === stage || event.target?.tagName === 'CANVAS') return;
+    if (game.state.selection.length === 0) return;
+    game.clearSelection();
+    hideMarquee();
     refresh();
   }
 
@@ -1401,13 +1835,14 @@ export async function boot() {
       }
       const now = performance.now();
       if (game.state.phase === 'bet') {
-        if (game.deal(now)) refresh();
+        if (game.deal(now)) { noteTour('deal'); refresh(); }
         else {
           game.sameAsLastRound();
-          if (game.state.stacks.length > 0 && game.deal(now)) refresh();
+          if (game.state.stacks.length > 0 && game.deal(now)) { noteTour('deal'); refresh(); }
         }
       } else if (game.state.phase === 'settled') {
         game.nextRound(now);
+        noteTour('next-round');
         if (game.state.stacks.length === 0) game.sameAsLastRound();
         refresh();
       }
@@ -1487,32 +1922,31 @@ export async function boot() {
   }
 
   /**
-   * The height control: one slider, two buttons, and one undo step per gesture.
+   * The height control: one slider and two buttons, acting on one stack or on the selection.
    *
-   * The slider emits a value per pixel, so the step is opened when the gesture starts and not
-   * before -- a per-value `snapshot()` would fill the undo stack with a drag's worth of identical
-   * states, and the first Ctrl+Z after a drag would then do nothing at all. The keyboard opens its
-   * own step on the first press and closes it on `change`, so an arrow key is one undo.
+   * The slider emits a value per pixel, so the gesture is marked as an edit when it starts rather
+   * than per value; the mark no longer opens an undo step (there is no undo), it only says the hand
+   * is no longer the untouched output of a quick layout.
    */
   function wireWeightControls() {
     const slider = $('stackWeight');
     // The range is the model's own coordinate, not a weight: `0..1` is a *position* along a
     // logarithmic scale, and `weightFromSlider` is what turns it into the number the core uses.
-    // A slider whose top were a weight would be a ceiling, and a ceiling is what this replaced.
     slider.min = '0';
     slider.max = '1';
     slider.step = String(WEIGHT_STEP);
     let sliding = false;
-    const openStep = () => {
+    const openEdit = () => {
       if (sliding) return;
       sliding = true;
-      game.markEdit();
+      game.beginEdit();
     };
-    slider.addEventListener('pointerdown', openStep);
+    slider.addEventListener('pointerdown', openEdit);
     slider.addEventListener('input', () => {
-      if (game.state.selected === null) return;
-      openStep();
-      game.setStackWeight(game.state.selected, weightFromSlider(parseFloat(slider.value)));
+      if (game.state.selection.length === 0) return;
+      openEdit();
+      game.setSelectionWeight(weightFromSlider(parseFloat(slider.value)));
+      noteTour('weight-change');
       refreshScores();
     });
     ['pointerup', 'pointercancel', 'change', 'blur'].forEach((type) => {
@@ -1520,18 +1954,24 @@ export async function boot() {
     });
 
     // Press and hold repeats, because the steps are ratios: getting from 2 down to 0.1 is a dozen
-    // presses otherwise, and holding a button to watch a tower shrink is how a height wants to be
-    // controlled. `setTimeout` then `setInterval` so the first repeat waits for a deliberate press.
+    // presses otherwise. The repeat is slower than it used to be -- a held button multiplied a
+    // tower by 1.25 every 70 ms, which is 24x a second and exactly the mis-touch the player
+    // reported. `setTimeout` then `setInterval` so the first repeat waits for a deliberate press.
     const repeat = (factor) => {
       let delay = null;
       let ticker = null;
-      const step = () => { if (game.state.selected !== null) { game.nudgeWeight(game.state.selected, factor); refresh(); } };
+      const step = () => {
+        if (game.state.selection.length === 0) return;
+        game.nudgeSelection(factor);
+        noteTour('weight-change');
+        refresh();
+      };
       const stop = () => { clearTimeout(delay); clearInterval(ticker); delay = null; ticker = null; };
       return {
         start() {
           if (delay !== null) return;
           step();
-          delay = setTimeout(() => { ticker = setInterval(step, 70); }, 380);
+          delay = setTimeout(() => { ticker = setInterval(step, 110); }, 450);
         },
         stop,
       };
@@ -1596,6 +2036,11 @@ export async function boot() {
       }
       event.preventDefault();
       event.stopPropagation();
+      // The capture-phase stop keeps the document's dismissal listener from seeing this click, so
+      // the selection is put down here. Reading a control's explanation is not about the stack.
+      game.clearSelection();
+      hideMarquee();
+      refresh();
       if (open === badge) { close(); return; }
       close();
       const text = badge.dataset.help || '';
@@ -1626,25 +2071,58 @@ export async function boot() {
     });
     $('run').addEventListener('change', (event) => { game.selectRun(parseInt(event.target.value, 10)); refresh(); });
     $('stageDeal').addEventListener('click', primaryAction);
-    $('stageRestart').addEventListener('click', onRestart);
+    $('restartRun').addEventListener('click', onRestart);
     $('sumRestart').addEventListener('click', () => { game.restart(performance.now()); refresh(); });
     $('coverTable').addEventListener('click', () => { game.applyPreset('cover', game.coverTable); refresh(); });
     $('evenGrid').addEventListener('click', () => { game.applyPreset('grid', game.evenGrid); refresh(); });
     $('sameAsLast').addEventListener('click', () => { game.applyPreset('last', game.sameAsLastRound); refresh(); });
-    $('clear').addEventListener('click', () => { game.clearStacks(); refresh(); });
-    $('undo').addEventListener('click', () => { game.undo(); refresh(); });
+    $('clear').addEventListener('click', onClear);
+    $('selectMode').addEventListener('click', () => { game.toggleSelectMode(); refresh(); });
     $('aimAssist').addEventListener('change', (event) => { game.state.aimAssist = event.target.checked; refresh(); });
     $('showHistory').addEventListener('change', (event) => { game.state.showHistory = event.target.checked; refreshScores(); });
     $('keepLayout').addEventListener('change', (event) => { game.state.keepLayout = event.target.checked; });
     $('snap').addEventListener('change', () => { game.toggleSnapping(); refreshScores(); });
     $('autoPlay').addEventListener('change', (event) => setAutoPlay(event.target.checked));
+    $('autoContinue').addEventListener('change', (event) => {
+      game.state.autoContinue = event.target.checked;
+      refreshControls();
+    });
+    $('teaching').addEventListener('change', (event) => {
+      // Turning teaching on starts a fresh tour: an old "height edited" fact would let the new
+      // tour skip the step that asks for it.
+      if (event.target.checked) resetTourFacts();
+      tour = tutorialSetEnabled(tour, event.target.checked);
+      renderTour();
+      refreshControls();
+    });
+    $('guideTour').addEventListener('click', () => {
+      resetTourFacts();
+      tour = tutorialReopen(tour);
+      openGuide(false);
+      renderTour();
+      refreshControls();
+    });
+    $('tourNext').addEventListener('click', () => {
+      tour = tutorialNext(tour, tourContext());
+      renderTour();
+      refreshControls();
+    });
+    $('tourBack').addEventListener('click', () => {
+      tour = tutorialBack(tour);
+      renderTour();
+      refreshControls();
+    });
+    $('tourSkip').addEventListener('click', () => {
+      tour = tutorialSkip(tour);
+      renderTour();
+      refreshControls();
+    });
     $('copyRound').addEventListener('click', copyRound);
     $('exportRun').addEventListener('click', exportRun);
     $('sumExport').addEventListener('click', exportRun);
-    $('stackRemove').addEventListener('click', () => { game.removeStack(game.state.selected); refresh(); });
-    $('stackMove').addEventListener('click', () => {
-      setMoveMode(moveMode === null ? game.state.selected : null);
-    });
+    $('stackRemove').addEventListener('click', onRemove);
+    // The toolbar is the one place a click must not close the selection it is acting on.
+    $('stackTools').addEventListener('click', (event) => event.stopPropagation());
     // The whole column folds away, and the stage takes the window. An attribute rather than a
     // class, because the page's own test shim has a `dataset` and only a stub `classList`: this way
     // the state is both the thing that drives the CSS and a thing a test can read back.
@@ -1655,7 +2133,7 @@ export async function boot() {
       $('sideToggle').setAttribute('aria-expanded', hidden ? 'true' : 'false');
       scene.resize();
     });
-    ['help', 'helpOpen', 'emptyBetHelp'].forEach((id) => $(id).addEventListener('click', () => openGuide(true)));
+    ['help', 'emptyBetHelp'].forEach((id) => $(id).addEventListener('click', () => openGuide(true)));
     $('guideClose').addEventListener('click', () => openGuide(false));
     $('guide').addEventListener('click', (event) => { if (event.target === $('guide')) openGuide(false); });
     $('fullscreen').addEventListener('click', toggleFullscreen);
@@ -1666,6 +2144,7 @@ export async function boot() {
     wireWeightControls();
     wireSplitter();
     wireHelp();
+    document.addEventListener('click', dismissSelectionFromClick);
 
     const chart = $('chart');
     const tip = $('chartTip');
@@ -1691,29 +2170,33 @@ export async function boot() {
       const key = event.key.toLowerCase();
       if (event.key === 'Escape') {
         if (!$('guide').hidden) openGuide(false);
-        else if (moveMode !== null) setMoveMode(null);
-        else if (game.state.selected !== null) { game.state.selected = null; refresh(); }
+        else { game.clearSelection(); hideMarquee(); refresh(); }
         return;
       }
-      if (event.key.startsWith('Arrow') && game.state.selected !== null) {
+      if (event.key.startsWith('Arrow') && game.state.selection.length > 0) {
         event.preventDefault();
         const factor = event.key === 'ArrowUp' ? NUDGE_FACTOR
           : event.key === 'ArrowDown' ? 1 / NUDGE_FACTOR : 1;
-        if (factor !== 1) { game.nudgeWeight(game.state.selected, factor); refresh(); }
+        if (factor !== 1) {
+          game.nudgeSelection(factor);
+          noteTour('weight-change');
+          refresh();
+        }
         return;
       }
-      if (key === 'z' && (event.ctrlKey || event.metaKey)) { game.undo(); refresh(); return; }
       if (key === 'd') primaryAction();
       else if (key === 'f') toggleFullscreen();
       else if (key === 'g') { game.toggleSnapping(); $('snap').checked = game.state.snapping; refreshScores(); }
       else if (key === 'h') { game.state.showHistory = !game.state.showHistory; $('showHistory').checked = game.state.showHistory; refreshScores(); }
       else if (key === 'a') { game.state.aimAssist = !game.state.aimAssist; refresh(); }
-      else if (key === 'm' && game.state.selected !== null) setMoveMode(moveMode === null ? game.state.selected : null);
+      else if (key === 's') { game.toggleSelectMode(); refresh(); }
       else if (key === 'c') copyRound();
-      else if (key === 'u') { game.undo(); refresh(); }
       else if (key === 'p') $('sideToggle').click();
       else if (key === '?') openGuide(true);
-      else if (event.key === 'Delete' && game.state.selected !== null) { game.removeStack(game.state.selected); refresh(); }
+      else if (event.key === 'Delete' && game.state.selection.length > 0) {
+        game.removeSelection();
+        refresh();
+      }
     });
   }
 
@@ -1791,6 +2274,7 @@ export async function boot() {
     new ResizeObserver(() => scene.resize()).observe(stage);
   }
   refresh();
+  renderTour();
   animatePreview();
   requestAnimationFrame(frame);
   return game;

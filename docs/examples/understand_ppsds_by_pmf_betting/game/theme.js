@@ -32,6 +32,11 @@ export const PALETTE = {
   landed: '#e8985a',
   eps: 'rgba(125, 211, 252, 0.14)',
   epsEdge: 'rgba(125, 211, 252, 0.42)',
+  // The noise's support: the prediction marker's gold at a low opacity. It is a property of the
+  // *law*, not of a bet, but it is drawn around the prediction and only exists while the
+  // prediction is shown, so it belongs to that drawing rather than competing with it.
+  support: '#f5c451',
+  supportEdge: '#f5c451',
   safe: '#4ade80',
   unsafe: '#f87171',
   maybe: '#f5c451',

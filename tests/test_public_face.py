@@ -36,7 +36,7 @@ pytestmark = pytest.mark.skipif(
 #: The reader types the front page is organised around. Prose may change; dropping one silently
 #: would leave a reader with nowhere to go. The four sections (Examples / Experiments / Research /
 #: Tutorials) are reached through these rows.
-BRANCH_LABELS = ('just curious', 'build the system yourself', 'you have a target system',
+BRANCH_LABELS = ('just curious', 'build it yourself', 'your system',
                  'only data', 'reproduce a paper', 'use it on your system', 'add a family',
                  'add a predictor kind', 'do research on the floor', 'work on the ceiling',
                  'found a problem while playing', 'contribute what you built',

@@ -161,5 +161,5 @@ if __name__ == '__main__':
     print("worst-case lower bound**: once the true system departs from your nominal model,")
     print("nominal's score can collapse, whereas DRPP's predictive covariance has already")
     print("accounted for that departure. To see the size of that difference in practice, look at")
-    print("the adversarial experiment (-e worst) under examples/understand_drpp_on_simulated_ambiguity/:")
-    print("there each predictor faces the worst SDS chosen **specifically against itself**.")
+    print("the adversarial experiment (-e worst) under experiments/drpp/: there each predictor")
+    print("faces the worst SDS chosen **specifically against itself**.")

@@ -9,9 +9,9 @@ probabilistic predictor that comes with a **floor** over every system you are wi
 <div class="frontdoor" markdown="1">
 <div class="frontdoor-col frontdoor-media" markdown="1">
 
-<video class="game-demo" controls playsinline preload="metadata" poster="assets/media/game-demo-poster.png" aria-label="A 40-second narrated demo of the betting game: prediction on, the gold noise support covered with stacks, one stack raised, the deal, and the next round">
+<video class="game-demo" controls playsinline preload="metadata" poster="assets/media/game-demo-poster.png" aria-label="A 45-second narrated demo of the betting game: prediction on, the gold noise support covered with stacks, one stack raised, the deal, the next round, and then Auto deal playing three rounds on its own">
 <source src="assets/media/game-demo.mp4" type="video/mp4">
-Your browser cannot play this video. <a href="assets/media/game-demo.mp4">Download the 40-second demo</a>.
+Your browser cannot play this video. <a href="assets/media/game-demo.mp4">Download the 45-second demo</a>.
 </video>
 
 <a class="play-badge" href="examples/understand_ppsds_by_pmf_betting/" aria-label="Go to the betting game">

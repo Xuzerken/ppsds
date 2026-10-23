@@ -26,11 +26,12 @@ import { feltOf } from './theme.js';
 import { WEIGHT_CEILING, WEIGHT_MIN, WEIGHT_STEP, discFootprint, discRadius, discPlan,
   fanStarts, frameBox, grabReach, indicesInRect, latticeStep, nearestIndex, nominalNext,
   nominalPath, noiseProse, panelWidth, safeBox, sameHand, shares, sliderFromWeight, smoothstep,
-  snapToLattice, stackHeight, supportBox, supportShape, viewSpan, weightFromSlider } from './world.js';
-import { createGestureState, pointerCancel, pointerDown, pointerMove,
+  snapToLattice, stackHeight, supportBox, supportShape, runSpan, viewSpan,
+  weightFromSlider } from './world.js';
+import { createGestureState, pinchZoom, pointerCancel, pointerDown, pointerMove,
   pointerUp } from './gestures.js';
-import { TOUR_STEPS, createTutorial, tourSpot, tutorialBack, tutorialNext, tutorialReady,
-  tutorialReopen, tutorialSetEnabled, tutorialSkip, tutorialStep } from './tutorial.js';
+import { TOUR_STEPS, createTutorial, tourSpot, tutorialNext, tutorialReady,
+  tutorialReopen, tutorialSkip, tutorialStep } from './tutorial.js';
 
 /** How far ahead the aim assist draws the drift's path. */
 const PATH_STEPS = 5;
@@ -69,13 +70,21 @@ export const AUTO_CONTINUE_MS = 1400;
  *  hand is still arriving, and both are well inside auto-play's own beat. */
 export const THROW_MS = 820;
 export const SETTLE_MS = 900;
-/** The three beats of a new round: the hand leaves, the camera moves over an empty table, the hand
- *  arrives. Hiding the discontinuity is the whole trick -- a hand that slides while the camera
- *  swings is two things moving at once, and the eye believes neither. */
-export const HAND_OUT_MS = 220;
+/**
+ * The two beats of a new round: **the hand moves, then the camera does**.
+ *
+ * In that order, and never at the same time. A hand that slides while the camera swings is two
+ * things moving at once and the eye believes neither -- but which of them goes second matters too.
+ * The camera used to go first, over an empty table, and the hand arrived already in its new place:
+ * the one thing that had actually changed was the thing you could not see move. Now the hand
+ * travels to its new anchor in plain sight and *then* the camera catches up, so a round reads as
+ * "my hand went over there, and the table came with it".
+ *
+ * Both beats are a function of `now`, which is what lets a test sample them instead of watching.
+ */
+export const HAND_SLIDE_MS = 320;
 export const CAMERA_MOVE_MS = 380;
-export const HAND_IN_MS = 220;
-export const TRANSITION_MS = HAND_OUT_MS + CAMERA_MOVE_MS + HAND_IN_MS;
+export const TRANSITION_MS = HAND_SLIDE_MS + CAMERA_MOVE_MS;
 /** How long a stack takes to acknowledge a touch: a short scale that says "I have it". */
 export const PRESS_MS = 240;
 
@@ -140,6 +149,23 @@ export function createGame(assets) {
    * and after it is placed, or the rule would chase its own tail.
    */
   const geometrySpan = () => viewSpan(here(), predicted(), state.eps);
+
+  /**
+   * The span the camera uses: the widest one this *run* will need (see `world.runSpan`).
+   *
+   * Cached because it is a scan over the run and `view()` runs every frame. The key is everything
+   * it depends on -- the table, which saved run, the payout radius and how many rounds the run
+   * lasts -- so changing any of them is a new frame, and changing the hand is not.
+   */
+  let frameSpanCache = { key: null, span: 0 };
+  function frameSpan() {
+    const key = `${state.presetKey}|${state.runIndex}|${state.eps}|${stepCount()}`;
+    if (frameSpanCache.key !== key) {
+      const states = trajectory().states[state.runIndex].slice(0, stepCount() + 1);
+      frameSpanCache = { key, span: runSpan(preset(), states, state.eps) };
+    }
+    return frameSpanCache.span;
+  }
 
   const stateAt = (step) => trajectory().states[state.runIndex][step];
   const noiseAt = (step) => trajectory().noise[state.runIndex][step];
@@ -267,23 +293,29 @@ export function createGame(assets) {
    */
   function nextRound(now = 0) {
     if (state.phase !== 'settled') return false;
+    // Everything about where the hand *was* is captured before the step moves: the anchor it stood
+    // on, the puck it stood around, and the hand itself.
     const from = predicted();
+    const fromHere = here();
+    const out = clone(state.stacks);
     state.step += 1;
     const kept = state.keepLayout && state.lastLayout ? state.lastLayout : [];
-    return beginRound(kept, { from, startedAt: now, out: clone(state.stacks) });
+    return beginRound(kept, { from, fromHere, startedAt: now, out, kept: kept.length > 0 });
   }
 
   function restart(now = 0) {
     const from = predicted();
-    const kept = state.keepLayout && state.lastLayout ? state.lastLayout : [];
+    const fromHere = here();
     const out = clone(state.stacks);
+    const kept = state.keepLayout && state.lastLayout ? state.lastLayout : [];
     state.rounds = [];
     state.step = 0;
     state.endReason = null;
-    return beginRound(kept, { from, startedAt: now, out });
+    return beginRound(kept, { from, fromHere, startedAt: now, out, kept: kept.length > 0 });
   }
 
-  function beginRound(stacks, { from = null, startedAt = 0, out = [] } = {}) {
+  function beginRound(stacks, { from = null, fromHere = null, startedAt = 0, out = [],
+    kept = false } = {}) {
     state.phase = 'bet';
     state.stacks = clone(stacks);
     state.landed = null;
@@ -293,7 +325,8 @@ export function createGame(assets) {
     state.presetApplied = null;
     // A round only changes with a beat when the world stayed put: changing table, radius or run is
     // a new game and reads as one -- `selectTable` and friends call this bare.
-    state.transition = from === null ? null : { startedAt, from, out };
+    state.transition = from === null
+      ? null : { startedAt, from, fromHere, out, kept };
     clampCursors();
     return true;
   }
@@ -716,33 +749,45 @@ export function createGame(assets) {
   }
 
   /**
-   * Where the hand is between two rounds.
+   * Where the hand is between two rounds, and whether the camera is allowed to move yet.
    *
-   * Three beats, and the middle one is the point: the hand fades out where it stood, the camera
-   * moves across a table with nothing on it to compare against, and the hand fades in at its new
-   * anchor. `handAlpha` is the third beat and `out` is the first; the middle beat is simply the
-   * stretch where both are empty, which is also when the camera's own easing has the stage to
-   * itself. Nothing here needs a timer of its own -- it is all a function of `now`, which is what
-   * lets a test sample the three beats instead of watching them.
+   * Two beats, in this order: the hand travels from the anchor it stood on to the anchor it is
+   * going to, and only then does the camera follow. `sliding` is the whole of the first beat, and
+   * it is what `view()` uses to hold the camera where it was -- a camera that starts easing while
+   * the hand is still travelling is two motions at once, and the point of this order is that each
+   * one is legible on its own.
+   *
+   * Nothing here needs a timer: it is all a function of `now`, which is what lets a test sample the
+   * beats instead of watching them.
    */
   function glideAt(now, base) {
     const glide = state.transition;
     if (glide === null) {
-      return { active: false, alpha: 1, from: base, out: [] };
+      return { active: false, sliding: false, anchor: base, from: base, fromHere: null,
+        leaving: [], out: [] };
     }
     const elapsed = now - glide.startedAt;
-    const arriving = smoothstep((elapsed - HAND_OUT_MS - CAMERA_MOVE_MS) / HAND_IN_MS);
+    const sliding = elapsed < HAND_SLIDE_MS;
+    const t = smoothstep(elapsed / HAND_SLIDE_MS);
     return {
       active: elapsed < TRANSITION_MS,
-      alpha: arriving,
+      sliding,
+      // The slide is a lerp from the old anchor to the new one. The offsets are the hand's own, so
+      // the whole hand travels as one piece -- which is what "my hand went over there" looks like.
+      anchor: [glide.from[0] + (base[0] - glide.from[0]) * t,
+               glide.from[1] + (base[1] - glide.from[1]) * t],
       from: glide.from,
-      // The hand this round did not keep is the same list as the one it did: either way it is what
-      // was on the table, and either way it is what leaves in the first beat.
-      out: elapsed < HAND_OUT_MS ? glide.out.map((stack) => ({
+      fromHere: glide.fromHere,
+      // The hand that is *not* coming back still has to leave: it fades where it stood over the
+      // same beat, because the table is not going to grow a second hand for it.
+      leaving: sliding && !glide.kept ? glide.out.map((stack) => ({
         at: [glide.from[0] + stack.x, glide.from[1] + stack.y],
         weight: stack.w,
-        alpha: 1 - smoothstep(elapsed / HAND_OUT_MS),
+        alpha: 1 - smoothstep(elapsed / HAND_SLIDE_MS),
       })) : [],
+      // Where the hand was, as absolute points: the first beat frames *that*.
+      out: sliding ? glide.out.map((stack) => [glide.from[0] + stack.x, glide.from[1] + stack.y])
+        : [],
     };
   }
 
@@ -756,11 +801,19 @@ export function createGame(assets) {
     const tower = state.stacks.reduce(
       (tallest, stack) => Math.max(tallest, stackHeight(stack.w, radius)), 0,
     );
-    // `landings` joins the frame: the trail behind the puck is the system's own motion, and a
-    // frame that only held the hand would let it drift off screen (see `frameBox`).
-    const landings = state.rounds.map((item) => landingAt(item.step));
-    const { centre, span } = frameBox(here(), base, resting(base), state.eps, tower, landings);
     const glide = glideAt(now, base);
+    // While the hand slides, the camera holds the frame it had: the old puck, the old anchor and
+    // the old hand. The span is the run's span either way, so what the camera does afterwards is a
+    // pan -- the hand keeps its size, and the table moves under it.
+    const held = glide.sliding && glide.fromHere !== null;
+    const { centre, span } = frameBox(
+      held ? glide.fromHere : here(),
+      held ? glide.from : base,
+      held ? glide.out : resting(base),
+      state.eps,
+      frameSpan(),
+      tower,
+    );
     const settleT = state.phase === 'settled'
       ? Math.min(1, (now - state.settledAt) / SETTLE_MS) : 0;
     const throwT = state.phase === 'bet' ? 0 : Math.min(1, (now - state.dealStarted) / THROW_MS);
@@ -778,11 +831,11 @@ export function createGame(assets) {
       // spheres for one object was the thing to fix rather than a thing to keep in step.
       predicted: state.aimAssist ? base : null,
       nominalPath: state.aimAssist ? nominalPath(preset(), here(), PATH_STEPS) : null,
-      // How visible the hand is: 0 while the camera moves, 1 once it has arrived.
-      handAlpha: glide.alpha,
       entering: glide.active,
+      // The hand is drawn at whatever anchor it is between: its own offsets are constant, and the
+      // anchor is what travels. That is the whole of the first beat.
       stacks: state.stacks.map((stack, index) => ({
-        at: [base[0] + stack.x, base[1] + stack.y],
+        at: [glide.anchor[0] + stack.x, glide.anchor[1] + stack.y],
         share: total > 0 ? stack.w / total : 0,
         weight: stack.w,
         // The tower both renderers draw: one plan per stack per frame, so the 3-D table and the
@@ -795,7 +848,7 @@ export function createGame(assets) {
         hover: state.phase === 'bet' && state.hover === index,
         pressT: Math.sin(Math.PI * Math.min(1, Math.max(0, pressT))) || 0,
       })),
-      leaving: glide.out,
+      leaving: glide.leaving,
       ball: ballAt(here(), state.landed, throwT, span),
       throwT,
       settleT,
@@ -812,9 +865,10 @@ export function createGame(assets) {
         // table ended up plotting a noise cloud at the origin with the prediction switched off.
         anchor: state.aimAssist ? base : null,
         paths: historyPaths(),
-        // The same points the frame was fitted to, so what is drawn as history and what the camera
-        // made room for cannot disagree.
-        landings,
+        // The wake is drawn as far as the frame holds it. It no longer decides the frame: on a
+        // drifting table its reach grows without bound, and a frame that followed it outwards every
+        // round shrank the hand with it (see `world.frameBox`).
+        landings: state.rounds.map((item) => landingAt(item.step)),
         draws: state.rounds.map((item) => [noiseAt(item.step)[0], noiseAt(item.step)[1]]),
       },
       phase: state.phase,
@@ -1042,10 +1096,16 @@ export async function boot() {
     $('aimAssist').checked = state.aimAssist;
     $('showHistory').checked = state.showHistory;
     $('keepLayout').checked = state.keepLayout;
-    $('autoPlay').checked = state.autoPlay;
     $('autoContinue').checked = state.autoContinue;
+    // The play button's icon *is* its state: a triangle while paused, two bars while it deals.
+    // `dataset` rather than a class, because the page's test shim has a dataset and a stub
+    // classList -- the same reason the panel's fold is an attribute.
+    $('stageAuto').dataset.state = state.autoPlay ? 'playing' : 'paused';
+    $('stageAuto').setAttribute('aria-pressed', state.autoPlay ? 'true' : 'false');
     $('snap').checked = state.snapping;
-    $('teaching').checked = tour.enabled;
+    // The one control over teaching is the guide's button, so it says which way it will go.
+    $('guideTour').textContent = tour.enabled ? 'Turn teaching off' : 'Show the tour';
+    $('guideTour').setAttribute('aria-pressed', tour.enabled ? 'true' : 'false');
 
     const label = state.phase === 'over' ? 'Play again'
       : (state.phase === 'settled' ? 'Next round' : 'Deal');
@@ -1071,6 +1131,10 @@ export async function boot() {
     $('selectMode').setAttribute('aria-pressed', state.selectMode ? 'true' : 'false');
     $('restartRun').disabled = spent;
     $('autoContinue').disabled = state.autoPlay;
+    // Nothing to deal with: the run is over (only Play again moves it), or the table is empty on
+    // the first round and there is no last hand for the button to repeat. A button that starts a
+    // clock that ticks over an empty table is a button that looks broken when it is honest.
+    $('stageAuto').disabled = spent || (idle && state.lastLayout === null);
     // Which quick layout the table is holding, if it is still holding it: the button says so, so
     // that "press it again to take it back" is a thing you can see rather than a thing you know.
     [['coverTable', 'cover'], ['evenGrid', 'grid'], ['sameAsLast', 'last']].forEach(([id, name]) => {
@@ -1106,9 +1170,12 @@ export async function boot() {
     $('supportNote').hidden = !(support && support.kind === 'ellipse');
     $('supportNote').textContent = support && support.kind === 'ellipse' ? support.label : '';
 
+    // Every folded row says its own state, so a row can be read without being opened -- which is
+    // what lets the panel be three rows instead of a page.
     $('digestRun').textContent = `${state.runLength} rounds · ε ${state.eps} · Run ${state.runIndex + 1}`;
-    $('digestMoves').textContent = state.stacks.length === 0
-      ? 'nothing on the table' : `${state.stacks.length} stacks`;
+    $('digestHand').textContent = state.stacks.length === 0
+      ? 'nothing on the table'
+      : `${state.stacks.length} stack${state.stacks.length === 1 ? '' : 's'}`;
     // Why "Cover the noise support" is off, when it is: it is built around the prediction, and on a table
     // that keeps its law it would be built out of the very thing that is hidden. The reason lives
     // on the button rather than in a paragraph somewhere else.
@@ -1141,7 +1208,7 @@ export async function boot() {
     $('rounds').textContent = `${scores.rounds} of ${game.stepCount()} rounds settled`;
     $('digestScore').textContent = scores.rounds === 0
       ? 'no rounds yet'
-      : `${scores.rounds} rounds · average ${show(scores.meanUtility)}`;
+      : `${scores.rounds} round${scores.rounds === 1 ? '' : 's'} · average ${show(scores.meanUtility)}`;
 
     // The end of a run gets its own block rather than replacing the scoreboard: the run's numbers
     // are worth reading next to the round-by-round ones that produced them.
@@ -1260,19 +1327,13 @@ export async function boot() {
     tourFacts = { heightChanged: false, deals: 0, nextRounds: 0 };
   }
 
-  /** Tell the tour what just happened. Gating itself is derived in `renderTour`. */
+  /** Tell the tour what just happened. Whether that completes the step is decided in `tickTour`. */
   function noteTour(event) {
     if (!tutorialStep(tour)) return;
     if (event === 'weight-change') tourFacts.heightChanged = true;
     else if (event === 'deal') tourFacts.deals += 1;
     else if (event === 'next-round') tourFacts.nextRounds += 1;
     else return;
-    // The last step does not wait for a click on the card: doing what it asks ends the tour, and a
-    // card that lingers after the player has moved on is one more thing to dismiss.
-    const context = tourContext();
-    if (tour.index === TOUR_STEPS.length - 1 && tutorialReady(tour, context)) {
-      tour = tutorialNext(tour, context);
-    }
     renderTour();
   }
 
@@ -1297,14 +1358,40 @@ export async function boot() {
     const step = tutorialStep(tour);
     $('tour').hidden = step === null;
     if (step === null) { positionTour(); return; }
-    $('tourText').textContent = step.text;
+    if ($('tourText').textContent !== step.text) $('tourText').textContent = step.text;
     $('tourStep').textContent = `${tour.index + 1} / ${TOUR_STEPS.length}`;
-    const ready = tutorialReady(tour, tourContext());
-    const next = $('tourNext');
-    next.disabled = !ready;
-    next.title = ready ? 'Next step' : 'Do this step first';
-    $('tourBack').disabled = tour.index === 0;
     positionTour();
+  }
+
+  /** How long a completed step stays on screen before it is replaced. Long enough to read "done". */
+  const TOUR_ADVANCE_MS = 900;
+  let tourReadyAt = 0;
+  let tourStepId = null;
+
+  /**
+   * Move the tour on when the table says the step is done.
+   *
+   * The card has no Next any more, so this clock *is* the button: a step ends because the player
+   * did what it asked, not because they pressed something. The pause before the change is what
+   * makes the card's green edge readable -- an instant swap reads as the text glitching.
+   *
+   * Driven from `frame()` rather than from events, because a gate can become true without an event
+   * the tour was told about (clearing the table un-satisfies "a stack", and re-placing one
+   * satisfies it again).
+   */
+  function tickTour(now) {
+    const step = tutorialStep(tour);
+    if (step === null) { tourReadyAt = 0; tourStepId = null; return; }
+    if (step.id !== tourStepId) { tourStepId = step.id; tourReadyAt = 0; }
+    const ready = tutorialReady(tour, tourContext());
+    $('tour').dataset.ready = ready ? 'yes' : 'no';
+    if (!ready) { tourReadyAt = 0; return; }
+    if (tourReadyAt === 0) { tourReadyAt = now; return; }
+    if (now - tourReadyAt < TOUR_ADVANCE_MS) return;
+    tour = tutorialNext(tour, tourContext());
+    tourReadyAt = 0;
+    renderTour();
+    refreshControls();
   }
 
   /**
@@ -1435,8 +1522,6 @@ export async function boot() {
       const percent = stack.share * 100;
       el.textContent = `${percent.toFixed(percent < 10 ? 1 : 0)}%`;
       el.classList.toggle('held', stack.selected);
-      // The labels belong to the hand, so they leave and arrive with it.
-      el.style.opacity = String(view.handAlpha);
       const at = scene.projectAt(stack.at, stack.height);
       el.style.transform = `translate(-50%, -100%) translate(${at.x}px, ${at.y - 7}px)`;
     });
@@ -1479,8 +1564,24 @@ export async function boot() {
     }
   }
 
+  /**
+   * A phone, either way up: the header is icons and the panel is a sheet that covers the table.
+   * The same rule as the stylesheet's, because `boot()` and the tour both need the answer and CSS
+   * cannot be asked. `matchMedia` would read better but the page's test shim does not have it.
+   */
+  const isCompact = () => window.innerWidth <= 640 || window.innerHeight <= 520;
+
+  /** Whether the tour card is out of sight, so its clock should stand still. */
+  function tourOutOfSight() {
+    if (!$('guide').hidden) return true;
+    return isCompact() && document.body.dataset.side === 'shown';
+  }
+
   function frame(now) {
     tickArmed(now);
+    // A step that has been done moves on by itself; see `tickTour`. Held while something is
+    // covering the card: a tour that advances out of sight is a tour that skipped a step.
+    if (!tourOutOfSight()) tickTour(now);
     if (game.shouldAutoContinue(now) && $('guide').hidden) {
       game.nextRound(now);
       noteTour('next-round');
@@ -1563,7 +1664,8 @@ export async function boot() {
 
   function wireStage() {
     const gesture = createGestureState();
-    let pinchBase = null;
+    /** Where the two fingers were on the previous pinch event: a pinch is a sequence of steps. */
+    let pinchPrev = null;
     let dragFrom = null;      // [{index, x, y}] the moving group's offsets when the drag began
     let lastPoint = { x: 0, y: 0 };
 
@@ -1626,12 +1728,21 @@ export async function boot() {
           refresh();
           break;
         case 'orbit':
-          scene.orbit(action.dx, action.dy);
+          // Shift turns the same drag into a pan: on a desktop there is no second finger.
+          if (action.shift) scene.panBy(action.dx, action.dy);
+          else scene.orbit(action.dx, action.dy);
           break;
-        case 'pinch':
-          if (pinchBase === null) pinchBase = action.distance;
-          else if (action.distance > 0) scene.zoomBy(pinchBase / action.distance);
+        case 'pinch': {
+          // The spread zooms and the pair's midpoint moves the table, both from the *previous*
+          // sample. Multiplying by "how far the pinch has come since it began" on every move made
+          // the zoom compound, which is the "too fast to aim" the phone reported.
+          const at = { distance: action.distance, x: action.x, y: action.y };
+          if (pinchPrev === null) { pinchPrev = at; break; }
+          scene.zoomBy(pinchZoom(pinchPrev.distance, at.distance));
+          scene.panBy(at.x - pinchPrev.x, at.y - pinchPrev.y);
+          pinchPrev = at;
           break;
+        }
         case 'place': {
           // A tap that went down on a stack has already done its whole job: it selected it on the
           // way down. Placing here as well is what used to leave a second stack in the same cell.
@@ -1689,7 +1800,7 @@ export async function boot() {
         touch: event.pointerType !== 'mouse', hit: hitAt(lastPoint, event.pointerType !== 'mouse'),
         shift: Boolean(event.shiftKey), selectMode: game.state.selectMode,
       });
-      if (gesture.mode === 'pinch') pinchBase = null;
+      if (gesture.mode === 'pinch') pinchPrev = null;
       act(action, lastPoint);
     });
 
@@ -1712,7 +1823,7 @@ export async function boot() {
 
     stage.addEventListener('pointerup', (event) => {
       const point = pointerPoint(event);
-      pinchBase = null;
+      pinchPrev = null;
       act(pointerUp(gesture, { id: event.pointerId, x: point.x, y: point.y }), point);
       stage.releasePointerCapture?.(event.pointerId);
     });
@@ -1720,12 +1831,13 @@ export async function boot() {
     // A touch the system takes away (a notification, an edge gesture) must not leave a stack
     // halfway across the table or a marquee on screen.
     stage.addEventListener('pointercancel', (event) => {
-      pinchBase = null;
+      pinchPrev = null;
       act(pointerCancel(gesture, { id: event.pointerId }), pointerPoint(event));
     });
 
     // Wheel is zoom, always. Changing a count is a deliberate press on the toolbar (or a key),
-    // because that was the whole complaint about mis-touches.
+    // because that was the whole complaint about mis-touches. `wheelZoom` reads the delta's
+    // magnitude: a trackpad's stream of 2 px events and a mouse's 120 px notch are not one step.
     stage.addEventListener('wheel', (event) => {
       event.preventDefault();
       scene.zoom(event.deltaY);
@@ -1738,6 +1850,18 @@ export async function boot() {
     $('guide').hidden = !open;
     document.body.classList.toggle('guide-open', open);
     if (open) $('guideClose').focus?.();
+  }
+
+  /**
+   * Back to the frame the rounds are written for.
+   *
+   * Panning is the one gesture that can leave the player looking at nothing: the table is still
+   * there, somewhere off the felt. This is the way back, and it is a named control rather than a
+   * gesture because the state that needs it is the state where guessing is expensive.
+   */
+  function resetView() {
+    scene.resetView();
+    refreshScores();
   }
 
   function primaryAction() {
@@ -1830,7 +1954,7 @@ export async function boot() {
     autoPlayTimer = setInterval(() => {
       if (game.atEnd()) {                 // the run is over: stop, and leave the summary up
         setAutoPlay(false);
-        $('autoPlay').checked = false;
+        refresh();
         return;
       }
       const now = performance.now();
@@ -2082,33 +2206,20 @@ export async function boot() {
     $('showHistory').addEventListener('change', (event) => { game.state.showHistory = event.target.checked; refreshScores(); });
     $('keepLayout').addEventListener('change', (event) => { game.state.keepLayout = event.target.checked; });
     $('snap').addEventListener('change', () => { game.toggleSnapping(); refreshScores(); });
-    $('autoPlay').addEventListener('change', (event) => setAutoPlay(event.target.checked));
+    // One button, two states: press to deal on its own, press again to stop. The icon is the
+    // state, so the player never has to remember which one they are in.
+    $('stageAuto').addEventListener('click', () => { setAutoPlay(!game.state.autoPlay); refresh(); });
     $('autoContinue').addEventListener('change', (event) => {
       game.state.autoContinue = event.target.checked;
       refreshControls();
     });
-    $('teaching').addEventListener('change', (event) => {
-      // Turning teaching on starts a fresh tour: an old "height edited" fact would let the new
-      // tour skip the step that asks for it.
-      if (event.target.checked) resetTourFacts();
-      tour = tutorialSetEnabled(tour, event.target.checked);
-      renderTour();
-      refreshControls();
-    });
+    // The guide's button is the whole teaching switch: it starts the tour again, or turns it off
+    // for this visit. A separate checkbox in the panel was the same control twice, and the guide
+    // is where a player goes to decide whether they want to be taught.
     $('guideTour').addEventListener('click', () => {
       resetTourFacts();
-      tour = tutorialReopen(tour);
+      tour = tour.enabled ? tutorialSkip(tour) : tutorialReopen(tour);
       openGuide(false);
-      renderTour();
-      refreshControls();
-    });
-    $('tourNext').addEventListener('click', () => {
-      tour = tutorialNext(tour, tourContext());
-      renderTour();
-      refreshControls();
-    });
-    $('tourBack').addEventListener('click', () => {
-      tour = tutorialBack(tour);
       renderTour();
       refreshControls();
     });
@@ -2129,18 +2240,21 @@ export async function boot() {
     $('sideToggle').addEventListener('click', () => {
       const hidden = document.body.dataset.side === 'hidden';
       document.body.dataset.side = hidden ? 'shown' : 'hidden';
-      $('sideToggle').textContent = hidden ? 'Hide panel' : 'Show panel';
+      // The word lives in its own span: the button also carries an icon, and rewriting its
+      // `textContent` would take the icon with it.
+      $('sideLabel').textContent = hidden ? 'Hide panel' : 'Show panel';
       $('sideToggle').setAttribute('aria-expanded', hidden ? 'true' : 'false');
       scene.resize();
     });
-    ['help', 'emptyBetHelp'].forEach((id) => $(id).addEventListener('click', () => openGuide(true)));
+    ['help', 'emptyBetHelp', 'helpIcon'].forEach((id) => $(id).addEventListener('click', () => openGuide(true)));
     $('guideClose').addEventListener('click', () => openGuide(false));
     $('guide').addEventListener('click', (event) => { if (event.target === $('guide')) openGuide(false); });
     $('fullscreen').addEventListener('click', toggleFullscreen);
     document.addEventListener('fullscreenchange', () => {
-      $('fullscreen').textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';
+      $('fullLabel').textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';
       scene.resize();
     });
+    $('resetView').addEventListener('click', resetView);
     wireWeightControls();
     wireSplitter();
     wireHelp();
@@ -2192,6 +2306,7 @@ export async function boot() {
       else if (key === 's') { game.toggleSelectMode(); refresh(); }
       else if (key === 'c') copyRound();
       else if (key === 'p') $('sideToggle').click();
+      else if (key === '0') resetView();
       else if (key === '?') openGuide(true);
       else if (event.key === 'Delete' && game.state.selection.length > 0) {
         game.removeSelection();
@@ -2215,12 +2330,12 @@ export async function boot() {
     const request = document.documentElement?.requestFullscreen?.();
     if (!request || typeof request.catch !== 'function') {
       fullscreenBlocked = true;
-      $('fullscreen').textContent = 'Open the full page';
+      $('fullLabel').textContent = 'Open the full page';
       return;
     }
     request.catch(() => {
       fullscreenBlocked = true;
-      $('fullscreen').textContent = 'Open the full page';
+      $('fullLabel').textContent = 'Open the full page';
       $('fullscreen').title = 'This frame does not allow full screen; the standalone page does';
     });
   }
@@ -2262,9 +2377,20 @@ export async function boot() {
   showSurface(surfaces.scene3d === null ? 'flat' : '3d');
   game.selectTable(game.state.presetKey);
 
-  // A phone gets the panels folded: the first screen is the table and the hand.
+  // A phone gets every panel folded: the first screen is the table and the hand, and the drawer
+  // opens on the three rows with nothing expanded. (The hand's row is the one that starts open on
+  // a wide screen; on a phone, opening the drawer to a wall of settings would undo the point.)
   if (window.innerWidth <= 820) {
-    ['panelTable', 'panelData'].forEach((id) => $(id).removeAttribute('open'));
+    ['panelHand', 'panelTable', 'panelRun', 'panelData']
+      .forEach((id) => $(id).removeAttribute('open'));
+  }
+  // A phone, either way up, also starts with the column closed: there it is a sheet over the
+  // table rather than a column beside it, and covering the table before the player has seen it
+  // would be the opposite of what the first round is for.
+  if (isCompact()) {
+    document.body.dataset.side = 'hidden';
+    $('sideLabel').textContent = 'Show panel';
+    $('sideToggle').setAttribute('aria-expanded', 'false');
   }
 
   wireControls();

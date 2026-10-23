@@ -16,6 +16,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js';
 import { feltOf } from './theme.js';
 import { arrowJoints, landingFade } from './world.js';
+import { wheelZoom } from './gestures.js';
 
 /** Divisions in the felt grid. Together with the view span this fixes the grid's cell size, which
  *  is what lets the grid be snapped to whole cells instead of sliding under the puck. */
@@ -282,26 +283,41 @@ export async function createTableScene(container) {
 
   // -- camera --------------------------------------------------------------------------------
 
-  let azimuth = -0.7;
-  let elevation = 0.85;
+  const HOME = { azimuth: -0.7, elevation: 0.85 };
+  let azimuth = HOME.azimuth;
+  let elevation = HOME.elevation;
   let zoomFactor = 1;
+  /**
+   * How far the player has dragged the table away from where the round put it, in world units on
+   * the ground plane. It is added to the view's centre rather than replacing it, so a round change
+   * still frames the hand -- the same way the tour card sitting on the table is the player's
+   * problem and not the camera's.
+   */
+  let panX = 0;
+  let panZ = 0;
+  /** The world size of one CSS pixel at the current camera distance, for `panBy`. */
+  let lastDistance = null;
   /** Where the camera is actually looking, which lags `view.centre` by design: the felt and the
    *  grid hang off this rather than off the target, so a round change does not teleport the baize
    *  out from under a hand that is still gliding across it. */
   const smoothed = new THREE.Vector3();
   /** The span the camera has eased to. It lags the view's, which is what turns "the frame changed"
-   *  into "the camera moved" -- and the lag happens while the table is empty (see `view.handAlpha`),
-   *  so there is nothing on screen to compare the two frames by. */
+   *  into "the camera moved". The span is decided per *run* (`world.runSpan`), so in practice it
+   *  starts where it is going to stay and this easing only matters when the hand changes size. */
   let smoothedSpan = null;
-  /** Whether the stack materials are currently in their see-through state. Flipping `transparent`
-   *  is a material change rather than a property write, so it is done on the frames it changes. */
-  let discFaded = false;
 
   function placeCamera(view) {
     smoothedSpan = smoothedSpan === null
       ? view.span : smoothedSpan + (view.span - smoothedSpan) * 0.18;
     const distance = smoothedSpan * 2.9 * zoomFactor;
-    const want = new THREE.Vector3(view.centre[0], 0, -view.centre[1]);
+    lastDistance = distance;
+    // The pan is clamped to the table's own size: a gesture that can put the baize out of reach
+    // entirely is a gesture with no way back, and "there is nothing on screen" is not a state the
+    // page can explain its way out of.
+    const limit = 1.4 * smoothedSpan;
+    panX = Math.max(-limit, Math.min(limit, panX));
+    panZ = Math.max(-limit, Math.min(limit, panZ));
+    const want = new THREE.Vector3(view.centre[0] + panX, 0, -view.centre[1] + panZ);
     target.lerp(want, 0.18);
     smoothed.copy(target);
     const horizontal = Math.cos(elevation) * distance;
@@ -388,22 +404,15 @@ export async function createTableScene(container) {
     grid.position.set(
       Math.round(smoothed.x / cell) * cell, 0.001, Math.round(smoothed.z / cell) * cell);
 
-    // The hand's own visibility: it leaves before the camera moves and arrives after it, so nothing
-    // on screen is ever sliding while the camera swings. `handAlpha` is 1 except between rounds.
-    const alpha = view.handAlpha;
-    const faded = alpha < 0.999;
-    if (faded !== discFaded) {
-      discFaded = faded;
-      for (const material of [discMaterials.bet, discMaterials.hit, discMaterials.miss]) {
-        material.transparent = faded;
-        material.needsUpdate = true;
-      }
-    }
+    // The hand is always solid now. It used to fade out while the camera moved, because the camera
+    // moved first; the other way round, the hand is the thing that travels and there is nothing to
+    // hide. The one hand that still fades is the one the round did not keep, and it carries its own
+    // alpha per stack (`view.leaving`).
     for (const material of [discMaterials.bet, discMaterials.hit, discMaterials.miss]) {
-      material.opacity = faded ? alpha : 1;
+      material.opacity = 1;
     }
-    epsMaterial.opacity = 0.22 * alpha;
-    epsEdgeMaterial.opacity = 0.7 * alpha;
+    epsMaterial.opacity = 0.22;
+    epsEdgeMaterial.opacity = 0.7;
 
     drawSupport(view.support);
 
@@ -483,13 +492,13 @@ export async function createTableScene(container) {
     // where a click would land. Selecting on a touch screen gives no other feedback at all, so
     // without them the toolbar appears out of nowhere -- and a group with one ring would look like
     // a single stack.
-    selectionMaterial.opacity = 0.85 * alpha;
+    selectionMaterial.opacity = 0.85;
     const selectedRings = selectionRings(selectedSpots.length);
     selectedSpots.forEach((spot, index) => {
       selectedRings[index].position.set(spot.at[0], 0.012 + spot.lift, -spot.at[1]);
       selectedRings[index].scale.setScalar(spot.radius * 1.9);
     });
-    hoverRing.material.opacity = 0.3 * alpha;
+    hoverRing.material.opacity = 0.3;
     hoverRing.visible = hoverSpot !== null;
     if (hoverSpot) {
       hoverRing.position.set(hoverSpot.at[0], 0.011 + hoverSpot.lift, -hoverSpot.at[1]);
@@ -604,7 +613,7 @@ export async function createTableScene(container) {
         : [hitPoint.x, -hitPoint.z];
     },
     zoom(deltaY) {
-      this.zoomBy(deltaY > 0 ? 1.08 : 0.93);
+      this.zoomBy(wheelZoom(deltaY));
     },
     /** A pinch hands in a ratio: below one means closer. */
     zoomBy(factor) {
@@ -613,6 +622,32 @@ export async function createTableScene(container) {
     orbit(dx, dy) {
       azimuth -= dx * 0.006;
       elevation = Math.min(1.3, Math.max(0.22, elevation + dy * 0.005));
+    },
+    /**
+     * Slide the table under a moving pair of fingers.
+     *
+     * The camera's own right and up axes are what "under the fingers" means: a pixel is worth
+     * `2·d·tan(fov/2) / height` world units, so the motion scales with the zoom the player chose.
+     * Both axes are then flattened onto the ground plane, because the target never leaves y = 0 --
+     * panning up and down the screen would otherwise tilt the table instead of moving it.
+     */
+    panBy(dx, dy) {
+      const distance = lastDistance === null
+        ? (smoothedSpan === null ? 1 : smoothedSpan) * 2.9 * zoomFactor : lastDistance;
+      const height = Math.max(1, container.clientHeight);
+      const unit = (2 * distance * Math.tan((camera.fov * Math.PI / 180) / 2)) / height;
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
+      panX += (-dx * right.x + dy * up.x) * unit;
+      panZ += (-dx * right.z + dy * up.z) * unit;
+    },
+    /** Back to the frame the rounds are written for: centred, unzoomed, at the home angle. */
+    resetView() {
+      panX = 0;
+      panZ = 0;
+      zoomFactor = 1;
+      azimuth = HOME.azimuth;
+      elevation = HOME.elevation;
     },
     /** Where a state-space point lands on the screen, in CSS pixels inside the container.
      *  The shell positions the stack toolbar and the share labels with this, so both renderers

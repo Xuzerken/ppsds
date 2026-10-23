@@ -49,8 +49,8 @@ INSTALL_DEADLINE = 40
 IMAGE_RE = re.compile(r'!?\[[^\]]*\]\((?:<)?([^)>\s]+)(?:>)?\)|<img[^>]+src="([^"]+)"')
 #: ``src``/``poster`` attributes of the elements that carry media. The README cannot embed a
 #: ``<video>`` at all (GitHub's sanitiser strips the tag unless the file was uploaded as an
-#: attachment), so it shows the poster and links to the MP4, while the site plays it. Both
-#: spellings still have to resolve to a file the export actually carries.
+#: attachment), so it shows the silent looping GIF and links to the narrated MP4, while the site
+#: plays the video itself. Both spellings still have to resolve to a file the export carries.
 MEDIA_SRC_RE = re.compile(r'<(?:img|source|video)[^>]+(?:src|poster)="([^"]+)"')
 FENCE_RE = re.compile(r'^```(\w*)', re.MULTILINE)
 ASSET_SUFFIXES = ('.png', '.gif', '.svg', '.mp4', '.webm')
@@ -127,6 +127,28 @@ def test_the_first_code_block_is_something_you_can_run():
         f'be a command a reader can paste.')
 
 
+#: A ``<td>`` and everything inside it, across lines.
+LAYOUT_CELL_RE = re.compile(r'<td[^>]*>(.*?)</td>', re.S)
+
+
+def test_no_table_is_nested_inside_a_layout_table():
+    """A table inside a layout cell collapses the cell that holds it.
+
+    GitHub renders every ``.markdown-body table`` as ``display: block; width: max-content``. Inside
+    a two-column layout table, the inner table then claims its whole intrinsic width, the outer
+    table overflows the article, and the other cell is squeezed to its widest word -- the demo
+    poster in the front door became a 75px sliver with its caption wrapped one word per line, while
+    the mapping table was cut off at the right edge. Reverting the video to a GIF would not have
+    changed any of that; the layout is what broke. Keep the layout table (it is how a README gets
+    two columns at all, since GitHub has no grids) but never put another table in its cells.
+    """
+    for cell in LAYOUT_CELL_RE.findall(text_of(README)):
+        assert not re.search(r'^\s*\|', cell, re.MULTILINE), (
+            'the README puts a markdown table inside a layout-table cell. GitHub sizes cells by '
+            'content there, so the cell that holds the table takes all the width and the other '
+            'one collapses. Put the table below the layout block instead.')
+
+
 # ----------------------------------------------------------------------
 # Figures
 # ----------------------------------------------------------------------
@@ -163,9 +185,12 @@ def test_every_figure_the_front_doors_reference_exists():
             assert (ASSETS / name).is_file(), f'{path.name} references {name}, which does not exist'
 
 
-#: The front page's hero. Not a figure: it is a narrated recording made outside this repository
-#: (see the README of the talks project), so it has no generator here and lives under ``media/``.
-DEMO_MEDIA = ('game-demo.mp4', 'game-demo-poster.png')
+#: The front page's hero, in its three renderings. None of them is a figure with a generator here:
+#: the MP4 is recorded with narration in the talks project (outside this repository), and the
+#: poster is a frame of it. The GIF is the sixth-round recording of the page itself, kept for the
+#: README alone, which cannot play the video -- it is re-recorded with ``tools/make_demo_gif.py``
+#: whenever the game's interface changes, so a stale one shows a page that no longer exists.
+DEMO_MEDIA = ('game-demo.mp4', 'game-demo-poster.png', 'game-demo.gif')
 
 
 @pytest.mark.parametrize('name', DEMO_MEDIA)
@@ -176,15 +201,15 @@ def test_the_demo_media_ships_with_the_front_doors(name):
 
 
 def test_the_site_plays_the_demo_and_the_readme_offers_it():
-    """One demo, two renderers: the site plays the video; GitHub strips ``<video>``, so the README
-    shows its poster and links to the MP4. Both front doors must offer the demo one way or the
-    other -- a front door that lost it is the whole funnel gone."""
+    """One demo, two renderers: the site plays the narrated video; GitHub strips ``<video>``, so
+    the README shows the silent looping GIF and links to the MP4. Both front doors must offer the
+    demo one way or the other -- a front door that lost it is the whole funnel gone."""
     site = text_of(SITE_HOME)
     assert '<video' in site, 'the site home page no longer embeds the demo video'
     assert 'media/game-demo.mp4' in site, 'the site video does not point at the MP4'
     readme = text_of(README)
-    assert 'media/game-demo.mp4' in readme, 'the README no longer links to the demo video'
-    assert 'media/game-demo-poster.png' in readme, 'the README shows no poster for the demo'
+    assert 'media/game-demo.gif' in readme, 'the README shows no moving demo'
+    assert 'media/game-demo.mp4' in readme, 'the README no longer links to the narrated video'
 
 
 def assets_mkdocs_loads() -> set[str]:

@@ -1,5 +1,5 @@
 /**
- * The first-visit tour: a tiny, pure state machine and the five things it asks you to do.
+ * The first-visit tour: a tiny, pure state machine and the six things it asks you to do.
  *
  * The page has a guide already, but a guide is a thing you open *after* you have decided the page
  * is worth learning. A player's first thirty seconds happen before that decision, so the first
@@ -7,9 +7,10 @@
  *
  * The steps are gates, not pages. `tutorialReady(state, context)` says whether the player has done
  * what the current step asks -- placed a stack, covered the support, changed a height, dealt,
- * moved on -- and `tutorialNext` refuses to advance until it is true. The shell enables the Next
- * button from the same predicate, so the tour never asks the player to read something and take it
- * on faith: a step is complete when the table says it is.
+ * moved on -- and `tutorialNext` refuses to advance until it is true. The shell watches the same
+ * predicate on its own clock and advances when it turns true, so a step is complete when the table
+ * says it is, and the card carries no button for going on. There is no going back for the same
+ * reason: the gate that was just met would push the tour forward again a beat later.
  *
  * Nothing here is persisted. The page's promise is that a visit leaves nothing behind, so "first
  * visit" means "this visit": every boot starts the tour again, and Skip lasts until the tab closes.
@@ -22,47 +23,42 @@
 export const TOUR_STEPS = [
   {
     id: 'prediction',
-    text: 'Turn on prediction. It draws where the drift alone would put the puck, and the noise '
-      + 'support around it: the gold region is everywhere the law says the puck can land.',
+    text: 'Turn on prediction — the gold region is everywhere the law lets the puck land.',
     covers: ['prediction', 'support'],
     needs: 'prediction',
     target: 'prediction',
   },
   {
     id: 'place',
-    text: 'Tap the felt to put a stack where you think the puck lands. '
-      + 'Drag a stack to move it, drag the felt to turn the table, and scroll or pinch to zoom.',
-    covers: ['tap', 'place', 'drag-stack', 'orbit', 'wheel', 'pinch'],
+    text: 'Tap the felt to place a stack. Drag the felt to turn it; two fingers move and zoom.',
+    covers: ['tap', 'place', 'orbit', 'pinch', 'pan'],
     needs: 'stack',
     target: 'felt',
   },
   {
     id: 'cover',
-    text: 'Keep adding stacks until every landing is inside a payout square -- the badge at the '
-      + 'lower left stops saying "Not safe" and the table is safe.',
+    text: 'Cover every landing; the badge stops warning when the table is safe.',
     covers: ['cover', 'safe'],
     needs: 'safe',
     target: 'felt',
   },
   {
     id: 'height',
-    text: 'Tap a stack to open its toolbar, then drag the slider or use − / +. '
-      + 'The height is its weight; the percentage is its share of the whole bet.',
+    text: 'Tap a stack to set its height — the height is its weight.',
     covers: ['select-stack', 'height', 'toolbar'],
     needs: 'height',
     target: 'felt',
   },
   {
     id: 'deal',
-    text: 'Press Deal. The ball lands, and every stack within ε of it pays its share of the bet.',
+    text: 'Press Deal. Stacks within ε of the ball pay their share.',
     covers: ['deal'],
     needs: 'deal',
     target: 'deal',
   },
   {
     id: 'next',
-    text: 'Press Next round. Keep my layout is on, so this hand comes back next round, '
-      + 're-anchored on the new prediction.',
+    text: 'Press Next round — your hand comes back on the new prediction.',
     covers: ['result', 'next-round', 'keep-layout'],
     needs: 'next-round',
     target: 'deal',
@@ -115,17 +111,6 @@ export function tutorialNext(state, context = {}) {
   if (!tutorialReady(state, context)) return next;
   next.index += 1;
   next.done = next.index >= TOUR_STEPS.length;
-  return next;
-}
-
-/**
- * Go back one step. The table is untouched, so a step already done stays done: going back is for
- * re-reading, not for undoing the round.
- */
-export function tutorialBack(state) {
-  const next = copy(state);
-  if (!next.enabled || next.done) return next;
-  next.index = Math.max(0, next.index - 1);
   return next;
 }
 

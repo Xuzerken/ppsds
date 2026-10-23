@@ -13,10 +13,13 @@ If the frame does not load, open
 server behind it. The **Full screen** button (or `F`) gives it the whole window, and **Hide
 panel** (or `P`) folds the control column away, leaving only the table. That costs you nothing but
 the settings: everything a round needs — the hand buttons, the switches, the score, the running
-average — is on the table itself. The panel is three folded rows (the table's settings, the data,
-and the way to take your bets with you) and it is there when you want it: the edge between it and
+average — is on the table itself. The panel is five folded rows — **Your hand**, **The table**,
+**This run**, **Data** and **Take your bets with you** — and each one says its own state on the
+summarised line, so a closed row can still be read. It is there when you want it: the edge between it and
 the table is a real edge, and dragging it is how the panel goes from one card wide to two and three
-as the cards flow into the room you give them. The one thing the page
+as the cards flow into the room you give them. On a phone — either way up — the header shrinks to a
+row of icons and the panel becomes a sheet that slides up from the bottom when asked for, so the
+table gets the whole screen instead of two thirds of it. The one thing the page
 needs from the network is the 3-D library, and without it it shows a flat table and keeps playing —
 that flat table is also a choice, under **How it is drawn**, for a reader on a machine without a GPU
 or on one where the table reads better without the depth.
@@ -24,11 +27,11 @@ or on one where the table reads better without the depth.
 The first visit starts a short **guided tour**: a card in the table's lower-left corner and a
 bouncing arrow that points at the one thing each step is about. **The six steps are the skeleton of
 this page, and the sections below follow them in order**: turn on prediction, place a stack, cover
-the noise support, change a height, deal, next round. A step's **Next** stays disabled until you
-have actually done what it asks (the table, not the button, says when a step is done), and
-**Back** returns to the previous step without undoing anything. **Skip** closes the tour for this
-visit — and takes the static "Place your stacks" hint with it — the **teaching** switch next to
-Hide panel brings it back, and so does **Show the tour** at the bottom of How to play. Nothing
+the noise support, change a height, deal, next round. The card has no **Next**: a step ends when you
+have actually done what it asks — the table, not a button, says when a step is done — and the card's
+edge turns green for a moment before the next step takes its place. **Skip** closes the tour for
+this visit — and takes the static "Place your stacks" hint with it — the **teaching** switch in Game
+settings brings it back, and so does **Show the tour** at the bottom of How to play. Nothing
 about the tour is stored — every visit starts it again — which is part of the same promise as the
 rest of the page: no server, no files, nothing kept between visits.
 
@@ -42,9 +45,14 @@ Three things are on the screen, and they are the three things this package is ma
 | the stacks you place | the **probabilistic predictor** — a pmf over where the puck will be |
 | how they pay | the **scoring rule** — the `epsilon`-logarithm score |
 
-The **Game settings** row holds the table card: the drift in plain words, an animated picture of
-what it does to a puck, the noise law, and (folded away) the matrix itself. Placement (snap), the
-preset predictors and the table's display live in the panel, where settings belong. Every control
+The panel is split by *when you would touch it*, not by kind: **Your hand** (the preset predictors,
+the one row that starts open, because it is the one a round brings you back to), **The table** (the
+drift in plain words, an animated picture of what it does to a puck, the noise law, the matrix, and
+how it is drawn), **This run** (how long, the payout radius, which saved run, what carries between
+rounds), then **Data** and the way to take your bets with you. Buttons are sized by how often they
+are pressed: **Deal** is the only filled one, the three hand buttons are the largest in the panel,
+and **Restart run** and **Recentre the table** are quiet because they are rare (and, in Restart's
+case, destructive). Every control
 that is not simply "carry on" carries a **?** in its corner. Tapping it opens the sentence that
 explains it — the same sentences a manual would have to repeat, kept next to the things they are
 about instead of in a paragraph somewhere else.
@@ -92,7 +100,10 @@ wake the puck has walked this run, with a ghost of the ball at every place it ha
 ## 2. Place a stack
 
 Tap the felt to put a stack where you think the puck lands. Drag a stack to move it, drag the felt
-to turn the table, and scroll or pinch to zoom. A tap on a stack already there picks it up instead
+to turn the table, scroll or pinch to zoom — and with two fingers on the felt, slide the pair to
+move the table itself: the tour card, a tall tower or a corner of the table you want to see can all
+get out of the way (`Shift`+drag does the same on a computer, and `0` puts the view back). A tap on
+a stack already there picks it up instead
 of stacking a second one on the same spot; tap it again to put it down. With **snap to grid** on,
 every stack lands on a payout square, so your squares tile the table and a landing is worth exactly
 one stack; off, a grid three times finer lets two stacks stand a third of a cell apart.
@@ -102,7 +113,7 @@ written on it as a percentage. Only the percentages are ever compared — a weig
 free parameter, so the page never asks you to choose one — and the number written on each stack is
 its share of the whole bet.
 
-The **Preset predictors** group in Game settings builds or recalls a whole layout, so you do not
+The **Your hand** row builds or recalls a whole layout, so you do not
 have to place stacks one at a time: **Even spread** is the baseline the experiment below falls back
 to, at a spacing that deliberately does not divide a box evenly (see the note in
 `experiments/pmf_betting/presets.py` for why); **Repeat last hand** puts the previous round's
@@ -200,19 +211,30 @@ differ and only one of them compounds.
 
 ## 6. Next round
 
-Between rounds the table has a beat: the hand fades out, the camera moves across the empty table,
-and the hand arrives already in its new place. Nothing slides while the camera swings, because a
-hand that moves at the same time as the camera is two things moving at once and the eye believes
-neither. After a round settles the page stops, so you can read it and change the hand; **Next
-round** starts the next one.
+Between rounds the table has two beats, in this order: **the hand travels to its new place, and
+then the camera follows it.** Never at the same time — two things moving at once is two things the
+eye believes neither of — but which goes second matters. The camera used to go first, over an empty
+table, with the hand reappearing already in its new place, so the one thing that had actually
+changed was the one thing you could not see move. After a round settles the page stops, so you can
+read it and change the hand; **Next round** starts the next one.
+
+The camera only ever **pans** during a run, it does not zoom: the frame is sized once for the whole
+run, wide enough for the widest gap the puck and its prediction will ever open. A frame fitted to
+the moment grew every round as the drift opened up, and every growth shrank the towers you had
+built — on the Long Table the frame went from 3.0 to 8.4 over six rounds, so a hand that was worth
+reading became a quarter of its size for a reason that had nothing to do with you. The cost is that
+the first round is framed a little wider than it strictly needs; the wake behind the puck is drawn
+as far as that frame holds and clipped past its edge.
 
 **keep my layout** starts on, because a hand is meant to be a rule you can score twice. **auto next
-round** moves on after a pause without touching your hand; **auto all rounds** also places and
-deals. A run is a fixed number of rounds — ten to fifty, twenty by default. It ends when the rounds
+round**, in the panel with it, moves on after a pause without touching your hand. **Auto deal** is
+the play button beside Deal: press it and the page deals, settles and deals again on your last hand
+until the run ends; the triangle becomes two bars, and pressing it again pauses. A run is a fixed
+number of rounds — ten to fifty, twenty by default. It ends when the rounds
 run out, or the moment a round pays nothing: `log(0)` is `-inf`, and the run stops there rather
 than being averaged into the next round. When it ends the page stops with it and shows what the run
 amounted to: the average score, the best and worst rounds, and each hand you played with what it
-paid. **auto all rounds** stops too.
+paid. Auto deal stops too, and its button goes back to a triangle.
 
 ??? note "Take your bets with you"
     Two buttons take your play back with you, and they are different things:
@@ -252,11 +274,13 @@ python experiments/pmf_betting/run.py --bets my_run.json     # one run, replayed
 
 **How to play** is a button in the page, not a paragraph at the start: it opens a guide with the
 gestures (tap to place, tap a stack to select it — and tap it again to let it go — set its height on
-the slider, drag a stack to move it, drag the felt to turn the table, pinch or scroll to zoom), the
+the slider, drag a stack to move it, drag the felt to turn the table, two fingers to move and zoom,
+scroll to zoom), the
 **Select** mode that turns taps and a box into a group, the three things you will do most, what the
 safe hand and par mean, the noise-support overlay, how a run ends (with **auto next round** told
-apart from **auto all rounds**), and where your numbers go. The first visit also gets the six-step
-tour; the teaching switch sits next to Hide panel, and the guide stays available for the session.
+apart from the **play button** beside Deal), and where your numbers go. The first visit also gets the
+six-step tour, and the button at the bottom of the guide is the switch for it: it starts the tour
+again, or turns it off for this visit.
 
 The page recomputes the scoring rule — and the coverage arithmetic, and the safe layout, and the
 table's own dynamics — in JavaScript. It has to, to answer your click instantly and without a

@@ -4,16 +4,10 @@
 
 **If that sounds abstract, that is expected.** The paragraph above is written for readers who already know what a *stochastic dynamical system* is and what *probabilistic prediction* means. Many people have never met either term, and some may already be working with such a system without knowing it. You cannot miss a capability you have never had a name for. The **one-minute game** below replaces the vocabulary with something you can play: place a few bets, watch the system move, and see what a probabilistic prediction is before reading a definition of it.
 
-<table>
-<tr>
-<td>
-
-[<img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/media/game-demo-poster.png" width="480" alt="A 40-second narrated demo of the betting game: prediction on, the gold noise support covered with stacks, one stack raised, the deal, and the next round">](https://xuzerken.github.io/ppsds/assets/media/game-demo.mp4)
-
-**[▶ Watch the 40-second demo](https://xuzerken.github.io/ppsds/assets/media/game-demo.mp4)** · **[Play the game →](https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/)**
-
-</td>
-<td>
+<p align="center">
+<a href="https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/"><img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/media/game-demo.gif" width="720" alt="The game's six-step guided tour, looping: prediction turned on, the gold noise support covered with stacks, one stack raised, the deal, the next round, and then Auto deal playing three rounds on its own"></a><br>
+<strong><a href="https://xuzerken.github.io/ppsds/assets/media/game-demo.mp4">▶ Watch the 45-second demo</a></strong> · <strong><a href="https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/">Play the game →</a></strong>
+</p>
 
 | on screen | in `ppsds` |
 |---|---|
@@ -21,16 +15,7 @@
 | the stacks you place | the **probabilistic predictor** — a probability mass function (pmf) over where the puck will be |
 | how they pay | the **scoring rule** — the `epsilon`-logarithm score |
 
-</td>
-</tr>
-<tr>
-<td colspan="2">
-
 A puck moves around a table. You bet on where it will land next by placing stacks. Then the dealer drops a ball: every stack within `epsilon` of the landing pays its share of your bet. That is the whole idea with the abstraction removed; the table above maps the three things on screen onto the three things the package is made of. Thirty seconds on the table explains what the package is better than a paragraph can — no install, no server, nothing kept.
-
-</td>
-</tr>
-</table>
 
 ## Install
 

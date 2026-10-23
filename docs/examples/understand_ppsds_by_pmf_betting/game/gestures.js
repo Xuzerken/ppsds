@@ -30,6 +30,39 @@
 /** Movement, in CSS pixels, that separates a tap from a drag. Fingers are less precise than mice. */
 export const SLOP = { mouse: 4, touch: 12 };
 
+/** How much of a pinch's ratio reaches the camera. Below 1, a spread has to work for it. */
+export const PINCH_GAIN = 0.8;
+
+/**
+ * A pinch hands in the *previous* and current finger distance and gets back the zoom factor this
+ * one event should apply.
+ *
+ * The ratio is between two samples, never between the current sample and where the pinch began.
+ * That is the whole point of the function: the first version kept the starting distance and
+ * multiplied by `start / now` on every move, so a pinch that opened 10% in two steps zoomed by
+ * 1.1 × 1.1. A gesture that accelerates the longer you hold it reads as "too fast and imprecise",
+ * which is exactly how it was reported from a phone. Multiplying per-event ratios is the only
+ * form that composes: `pinchZoom(a, b) * pinchZoom(b, c) === pinchZoom(a, c)`.
+ */
+export function pinchZoom(previous, current) {
+  return previous > 0 && current > 0 ? (previous / current) ** PINCH_GAIN : 1;
+}
+
+/** How much of a wheel pixel reaches the zoom. Small: a trackpad sends dozens of events per gesture. */
+export const WHEEL_GAIN = 0.0018;
+
+/**
+ * A wheel event's magnitude, not just its sign.
+ *
+ * `zoom(deltaY > 0 ? 1.08 : 0.93)` treats a trackpad's 2 px delta and a mouse wheel's 120 px notch
+ * as the same step, so the trackpad flew and the wheel crawled. The delta is clamped because a
+ * flick can report thousands of pixels in one event.
+ */
+export function wheelZoom(deltaY) {
+  const step = Math.max(-60, Math.min(60, Number(deltaY) || 0));
+  return Math.exp(step * WHEEL_GAIN);
+}
+
 /** A fresh gesture state. One per stage; the shell keeps it for the life of the page. */
 export function createGestureState() {
   return {
@@ -38,6 +71,7 @@ export function createGestureState() {
     target: null, // index of the stack a drag is carrying
     moved: 0, // the largest distance from the start point, in CSS pixels
     selectMode: false, // the mode captured when this gesture started
+    shift: false, // Shift was held when the pointer went down: a desktop drag pans, not turns
   };
 }
 
@@ -59,6 +93,7 @@ export function pointerDown(state, event) {
   state.pointers[event.id] = point;
   state.moved = 0;
   state.selectMode = Boolean(event.selectMode);
+  state.shift = Boolean(event.shift);
 
   if (count(state) >= 2) {
     // A second finger means zooming, and it cancels whatever the first one was doing: a pinch that
@@ -129,7 +164,11 @@ export function pointerMove(state, event) {
     return { kind: 'drag', index: state.target, dx: point.x - previous.x, dy: point.y - previous.y };
   }
   if (state.mode === 'orbit') {
-    return { kind: 'orbit', dx: point.x - previous.x, dy: point.y - previous.y };
+    // Same drag, two meanings: turning the table shows the towers, moving it gets the hand out
+    // from under the tour card. Shift is the desktop's way of asking for the second one.
+    return {
+      kind: 'orbit', dx: point.x - previous.x, dy: point.y - previous.y, shift: state.shift,
+    };
   }
   return { kind: 'none' };
 }
@@ -199,12 +238,23 @@ export function pointerCancel(state, event = {}) {
   return target === null ? { kind: 'cancel' } : { kind: 'release', index: target };
 }
 
-/** How far apart the two fingers are, for a pinch. */
+/**
+ * The two fingers' spread *and* their midpoint, for a pinch.
+ *
+ * The midpoint is what makes two-finger pan possible: the spread decides the zoom, and where the
+ * pair as a whole has moved decides how far the table slides. Reporting only the distance is what
+ * left the table unpannable -- the one gesture a phone has for "move this out of the way".
+ */
 function pinch(state) {
   const ids = Object.keys(state.pointers);
   if (ids.length < 2) return { kind: 'none' };
   const [a, b] = ids.map((id) => state.pointers[id]);
-  return { kind: 'pinch', distance: distance(a, b) };
+  return {
+    kind: 'pinch',
+    distance: distance(a, b),
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  };
 }
 
 function reset(state) {
@@ -212,4 +262,5 @@ function reset(state) {
   state.target = null;
   state.moved = 0;
   state.selectMode = false;
+  state.shift = false;
 }

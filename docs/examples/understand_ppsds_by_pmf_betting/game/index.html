@@ -9,6 +9,13 @@
     --bg: #0e1118; --panel: #161a22; --ink: #e8ecf3; --dim: #9aa5b8;
     --line: #262d3a; --accent: #63b3ed; --ok: #4ade80; --warn: #f87171; --maybe: #f5c451;
     --series: #3987e5; --reference: #d55181;
+    /* Button icons, as masks so they take `currentColor`: a lit primary button needs a dark icon,
+       a quiet one needs a light one, and one shape has to serve both. */
+    --ico-chip: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M12 1.6a10.4 10.4 0 1 0 0 20.8 10.4 10.4 0 0 0 0-20.8zm0 4.8a5.6 5.6 0 1 1 0 11.2 5.6 5.6 0 0 1 0-11.2zM10.9 3.2h2.2v2.6h-2.2zm0 15h2.2v2.6h-2.2zM3.2 10.9h2.6v2.2H3.2zm15 0h2.6v2.2h-2.6z'/%3E%3C/svg%3E");
+    --ico-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 10.6h11.2l-4.4-4.4L12.2 4.8 20.2 12l-8 7.2-1.4-1.4 4.4-4.4H4z'/%3E%3C/svg%3E");
+    --ico-redo: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 5.2V1.6L6.4 7.2 12 12.8V8.6a6.4 6.4 0 1 1-6.4 6.4H2.2A9.8 9.8 0 1 0 12 5.2z'/%3E%3C/svg%3E");
+    --ico-play: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7.5 4.6 19 12 7.5 19.4z'/%3E%3C/svg%3E");
+    --ico-pause: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6.6 4.8h3.8v14.4H6.6zm7 0h3.8v14.4h-3.8z'/%3E%3C/svg%3E");
   }
   body[data-felt="green"] { --accent: #5eead4; }
   body[data-felt="red"] { --accent: #fda4af; }
@@ -32,14 +39,17 @@
   h1 { font-size: 18px; margin: 0; letter-spacing: .01em; white-space: nowrap; }
   p.lead { color: var(--dim); margin: 0; font-size: 13px; flex: 1 1 300px; min-width: 0; }
   .actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-  /* The teaching switch belongs with the window controls: it is about the page, not the round. */
-  .topOpt {
-    position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px;
-    font-size: 12.5px; color: var(--dim); cursor: pointer;
-    background: rgba(10, 13, 18, .7); border: 1px solid var(--line); border-radius: 9px;
+  /* The header's buttons carry an icon and a word. On a phone the word goes and the icon stays:
+     the row has to be one line, and the title is the part worth keeping in words. */
+  .actions button.icon {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 12.5px;
+    border-radius: 9px; background: rgba(10, 13, 18, .7);
   }
-  .topOpt:hover { color: var(--ink); }
-  .topOpt input { accent-color: var(--accent); margin: 0; }
+  .actions button.icon .ico { font-size: 13px; line-height: 1; }
+  /* The compact header's only way into the guide; the desktop header has the link in the sentence.
+     ⚠️ The selector has to match `.actions button.icon`'s specificity (element + two classes) or
+     the `display: inline-flex` above wins and the `?` shows up on a wide screen as well. */
+  .actions button.compactOnly { display: none; }
   button.link { background: none; border: none; color: var(--accent); padding: 0; text-decoration: underline; }
   #bench { flex: 1 1 auto; display: flex; gap: 6px; min-height: 0; }
 
@@ -142,8 +152,8 @@
   }
   .opt:hover { color: var(--ink); }
   .opt input { accent-color: var(--accent); margin: 0; }
-  /* The teaching switch is a settings row, not a pill on the table; it borrows the pill's look
-     without joining the `.opt` count that the page's structure test pins. */
+  /* A checkbox row in the panel (snap, keep my layout, auto next round). It borrows the pill's
+     look without joining the `.opt` count that the page's structure test pins. */
   .teachOpt {
     position: relative; display: flex; align-items: center; gap: 7px; margin: 8px 0 0;
     padding: 4px 9px; color: var(--dim); font-size: 13px; cursor: pointer;
@@ -185,13 +195,18 @@
     border-radius: 12px; box-shadow: 0 10px 36px rgba(0, 0, 0, .45); pointer-events: none;
     backdrop-filter: blur(2px);
   }
-  #tour p { margin: 0 0 7px; font-size: 12.5px; line-height: 1.42; }
+  #tour p { margin: 0 0 6px; font-size: 12.5px; line-height: 1.42; }
   .tourRow { display: flex; align-items: center; gap: 8px; }
   .tourStep { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
   #tour button { pointer-events: auto; }
-  /* Back and Skip are the same kind of quiet exit from the step; Next is the only primary. */
-  #tourBack, #tourSkip { padding: 4px 2px; font-size: 13px; }
-  #tourNext { margin-left: auto; padding: 4px 12px; font-size: 13px; }
+  /* Skip is the whole control surface: a step ends when the table says it did, so there is nothing
+     to press to go on -- and nothing to press to go back either, since the tour would only be
+     pushed forward again a beat later. */
+  #tourSkip { margin-left: auto; padding: 4px 2px; font-size: 13px; }
+  /* The step's action is done; the tour is about to move on. A green edge says "noted, wait" so a
+     card that changes by itself does not read as a glitch. */
+  #tour[data-ready="yes"] { border-color: var(--ok); }
+  #tour { transition: border-color .12s linear; }
   body.guide-open #tour { display: none; }
 
   .dock {
@@ -239,10 +254,25 @@
   }
   /* The icon is a pseudo-element keyed on the phase the button was told about (see
      `refreshControls`): `textContent` is rewritten on every refresh, so anything inside the button
-     would be wiped. `▶` deal, `→` next round, `↻` play again. */
-  #stageDeal::before { content: '▶ '; }
-  #stageDeal[data-act="next"]::before { content: '→ '; }
-  #stageDeal[data-act="again"]::before { content: '↻ '; }
+     would be wiped. The mask takes `currentColor`, so one shape serves the lit Deal button and the
+     quiet ones beside it. A chip for "put your money down", an arrow for the next round, a loop
+     for a new run.
+     ⚠️ `▶` used to mean Deal. It cannot any more: the auto-deal button next to it is a play
+     button, and two identical triangles side by side are one control the player has to read. */
+  #stageDeal { --icon: var(--ico-chip); }
+  #stageDeal[data-act="next"] { --icon: var(--ico-arrow); }
+  #stageDeal[data-act="again"] { --icon: var(--ico-redo); }
+  #stageDeal::before, #stageAuto::before {
+    content: ''; display: inline-block; width: 1.05em; height: 1.05em; margin-right: .38em;
+    vertical-align: -.12em; background: currentColor;
+    -webkit-mask: var(--icon) center / contain no-repeat;
+            mask: var(--icon) center / contain no-repeat;
+  }
+  /* Auto deal: the same button plays and pauses. The icon carries the state -- a play triangle
+     while it is paused, two bars while it is dealing -- and the two words say what the button is
+     for. An icon on its own was a guess: a triangle next to Deal could have meant anything. */
+  #stageAuto { --icon: var(--ico-play); padding: 9px 12px; }
+  #stageAuto[data-state="playing"] { --icon: var(--ico-pause); border-color: var(--accent); }
   #stageDeal.ready { box-shadow: 0 0 0 3px rgba(92, 200, 255, .45); }
   #stageDeal:disabled { opacity: .5; }
   @media (prefers-reduced-motion: no-preference) {
@@ -304,6 +334,9 @@
   .side {
     flex: 0 0 var(--side-w, clamp(300px, 25vw, 366px)); min-width: 0; overflow-y: auto;
     padding-right: 6px; display: grid; gap: 8px; align-content: start;
+    /* Cards keep their own height: `stretch` would blow a folded row up to the height of the open
+       one beside it, which reads as an empty panel rather than a closed one. */
+    align-items: start;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   }
   .side .wide { grid-column: 1 / -1; }
@@ -335,12 +368,24 @@
   button.primary { background: var(--accent); color: #071018; border-color: var(--accent); font-weight: 700; }
   button.wide { width: 100%; margin-top: 8px; padding: 9px; font-size: 16px; }
   button.tiny { padding: 3px 8px; }
+  /* Weight follows how often a control is pressed, and the ladder is short on purpose:
+       #stageDeal   the one primary -- the thing a round is waiting for;
+       .presetRow   the panel's most-pressed buttons: taller and a point larger than default;
+       (default)    the dock's secondaries and the export buttons;
+       .quiet       rare or destructive -- Restart throws the run away, Recentre exists for the
+                    one state where the view has been dragged off. Reachable, not inviting. */
+  button.quiet {
+    color: var(--dim); font-size: 12.5px; padding: 4px 10px; background: none;
+  }
+  button.quiet:hover:not(:disabled) { color: var(--ink); }
   .row { display: flex; gap: 6px; flex-wrap: wrap; }
   .row button { flex: 1 1 auto; }
   /* The preset predictors are a short list, not a toolbar: one per line reads better than three
      labels fighting for a 300 px card. */
   .presetRow { flex-direction: column; }
-  .presetRow button { flex: 0 0 auto; text-align: left; padding-right: 14px; }
+  .presetRow button {
+    flex: 0 0 auto; text-align: left; padding: 9px 22px 9px 11px; font-size: 14px;
+  }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   td { padding: 1px 0; }
   td.k { color: var(--dim); font-size: 13px; }
@@ -402,10 +447,14 @@
     /* There is no edge to drag when the two are stacked, and no room for the group names. */
     #split { display: none; }
     .rowLabel { display: none; }
-    /* Stacked, the column is as wide as the window -- which would be room for two cards side by
-       side, and two cards side by side on a phone-width screen is two cards you cannot read. One
-       per row, however wide the frame happens to be. */
-    .side { flex: 1 1 auto; overflow: visible; padding-right: 0; grid-template-columns: 1fr; }
+    /* Stacked under the table, the rows flow into as many columns as the window can carry: five
+       folded rows in one column is a page that scrolls for no reason. The floor is what keeps it
+       honest -- a column narrower than a card is a column you cannot read -- and the phone's
+       drawer (below) goes back to one. */
+    .side {
+      flex: 1 1 auto; overflow: visible; padding-right: 0;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
     .dockLeft { max-width: 54%; }
     .settle b { font-size: 17px; }
     .btnRow button { padding: 7px 9px; font-size: 12px; }
@@ -415,19 +464,49 @@
     #guide { align-items: flex-end; padding: 0; }
     #guide .sheet { border-radius: 16px 16px 0 0; max-height: 88dvh; }
   }
-  /* Three columns need a column's worth of room for the sentence. On a phone they do not fit --
-     the text would be squeezed to a word a line -- so the controls take their own row again. */
-  @media (max-width: 640px) {
-    .top { flex-wrap: wrap; }
-    .top p.lead { flex: 1 1 200px; }
-    .top .actions { margin-left: auto; }
-  }
-  /* A phone held sideways is wide enough to trip the desktop rules but far too short for them. */
-  @media (max-height: 520px) and (max-width: 1180px) {
-    body { height: auto; overflow: auto; }
-    #bench { flex-direction: column; }
-    #stage { height: 76vh; flex: 0 0 auto; }
+  /* ---- A phone, either way up ---------------------------------------------------------------
+     Portrait is narrow and landscape is short, and both mean the same thing: the table is the
+     page. The header shrinks to one row of icons, the sentence goes (the guide is a `?` away), and
+     the panel leaves the flow entirely -- settings the player did not ask for must not take a
+     third of the screen away from the thing they came to play. ------------------------------- */
+  @media (max-width: 640px), (max-height: 520px) {
+    body { height: 100dvh; min-height: 0; padding: 6px 8px; gap: 6px; overflow: hidden; }
+    .top { flex-wrap: nowrap; gap: 8px; }
+    .top h1 { font-size: 15px; }
+    .top p.lead { display: none; }
+    .top .actions { flex: 0 0 auto; margin-left: auto; }
+    .actions button.icon { padding: 6px 8px; }
+    .actions .lbl { display: none; }
+    .actions button.compactOnly { display: inline-flex; }
+    #bench { flex-direction: column; gap: 0; }
+    #stage { flex: 1 1 auto; height: auto; min-height: 0; }
+    body[data-side="hidden"] #stage { height: auto; }
     #split { display: none; }
+    /* Out of the flow: the same toggle and the same `data-side` as the desktop column, a different
+       place to come from. Closed until asked for (`boot()` starts it closed on a phone). */
+    .side {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 12;
+      max-height: 72dvh; overflow-y: auto; padding: 10px 12px 16px;
+      background: var(--bg); border-top: 1px solid var(--line);
+      border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px rgba(0, 0, 0, .5);
+      grid-template-columns: 1fr;
+    }
+    /* The card is pinned to the table's lower-left corner by the shell; on a phone it spans the
+       width instead, because a 300 px box on a 390 px screen is the screen. */
+    #tour { left: 8px; right: 8px; width: auto; padding: 8px 10px; }
+    #tour p { font-size: 12px; }
+    /* The sheet is a surface of its own, and a coach mark lying across it is advice for a screen
+       the player is not looking at. `tickTour` pauses on the same condition, so no step is lost
+       while the card is away. */
+    body[data-side="shown"] #tour,
+    body[data-side="shown"] #tourArrow { display: none; }
+  }
+  /* Landscape is shorter than it is narrow. Every row of chrome is a row of table. */
+  @media (max-height: 520px) {
+    .top h1 { font-size: 13px; }
+    .actions button.icon { padding: 4px 7px; }
+    .options { top: 6px; }
+    .dock { left: 8px; right: 8px; bottom: 6px; }
   }
 </style>
 </head>
@@ -441,11 +520,15 @@
     <button class="link" id="help">How to play</button>
   </p>
   <div class="actions">
-    <label class="topOpt" title="Show the guided tour on this visit">
-      <input type="checkbox" id="teaching"><span>teaching</span><i class="q" data-help="The short guided tour over the first round. It starts on every visit; Skip closes it until the tab closes, and this switch brings it back. Nothing about it is stored.">?</i>
-    </label>
-    <button id="sideToggle" title="P">Hide panel</button>
-    <button id="fullscreen" title="F">Full screen</button>
+    <button id="helpIcon" class="icon compactOnly" title="?" aria-label="How to play">
+      <span class="ico" aria-hidden="true">?</span>
+    </button>
+    <button id="sideToggle" class="icon" title="P" aria-expanded="true">
+      <span class="ico" aria-hidden="true">▤</span><span class="lbl" id="sideLabel">Hide panel</span>
+    </button>
+    <button id="fullscreen" class="icon" title="F">
+      <span class="ico" aria-hidden="true">⛶</span><span class="lbl" id="fullLabel">Full screen</span>
+    </button>
   </div>
 </div>
 
@@ -471,19 +554,14 @@
         <label class="opt" id="predictionPill"><input type="checkbox" id="aimAssist"><span>prediction</span><i class="q" data-help="Draws where this round's drift alone would put the puck, the drift's next few steps, and the noise's support around it -- the region where the law says the puck can land. It is an aid, not information you are entitled to: the drift is known either way, and hiding this changes no number -- only what you can see while you choose.">?</i></label>
         <label class="opt"><input type="checkbox" id="showHistory"><span>last rounds</span><i class="q" data-help="The wake the puck has walked this run, with an arrowhead at each joint, plus a ghost of the ball at every place it has landed. With the prediction hidden, the cloud of past draws goes too -- it is drawn around the prediction, so there is nothing to draw it around.">?</i></label>
       </div>
-      <div class="optRow"><span class="rowLabel">auto</span>
-        <label class="opt"><input type="checkbox" id="keepLayout"><span>keep my layout</span><i class="q" data-help="Carries this round's hand into the next one, re-anchored on the new prediction. It starts on, because a hand is meant to be a rule you can score twice; turn it off to start each round with an empty table.">?</i></label>
-        <label class="opt"><input type="checkbox" id="autoPlay"><span>auto all rounds</span><i class="q" data-help="Deals, settles and deals again on its own, reusing your last hand, until the run ends. It stops when the run does: a round that pays nothing ends it.">?</i></label>
-        <label class="opt"><input type="checkbox" id="autoContinue"><span>auto next round</span><i class="q" data-help="After a round settles, move to the next one after a pause. It does not place or change your hand -- that is auto all rounds. The run still stops at the end.">?</i></label>
-      </div>
     </div>
 
     <div id="supportNote" hidden></div>
     <div id="marquee" hidden></div>
 
     <div id="emptyBet"><strong>Place your stacks</strong>
-      Tap the felt where you think the puck will land. Drag the felt to turn the table, pinch to
-      zoom, and tap a stack to change its height.
+      Tap the felt where you think the puck will land. Drag to turn the table; two fingers move it
+      and zoom. Tap a stack to change its height.
       <button class="link" id="emptyBetHelp">How to play</button>
     </div>
 
@@ -507,6 +585,8 @@
         </div>
         <div class="btnRow"><span class="rowLabel">run</span>
           <button id="stageDeal" class="primary">Deal</button>
+          <button id="stageAuto" class="helped" data-state="paused"
+                  aria-pressed="false" aria-label="Auto deal"><span class="lbl">Auto deal</span><i class="q" data-help="Deals, settles and deals again on its own, reusing your last hand, until the run ends. Press it again to pause. A round that pays nothing ends the run.">?</i></button>
         </div>
       </div>
     </div>
@@ -516,9 +596,23 @@
        aria-label="Drag to resize the panel" title="Drag to resize the panel"></div>
 
   <div class="side" id="side">
-    <details class="panel" id="panelTable" open>
-      <summary><span class="legend">Game settings</span><span class="digest" id="digestTable"></span></summary>
-      <p class="group">The table</p>
+    <!-- Three settings rows, in the order a player meets them: the hand (every round), the table
+         (once), the run (once). The hand is the only one that starts open, because it is the only
+         one a round makes you touch again; the other two say their state in the summary line so
+         they do not have to be opened to be read. -->
+    <details class="panel" id="panelHand" open>
+      <summary><span class="legend">Your hand</span><span class="digest" id="digestHand"></span></summary>
+      <div class="row presetRow">
+        <button id="coverTable" class="helped">Cover the noise support<i class="q" id="coverTableHelp" data-help="">?</i></button>
+        <button id="evenGrid" class="helped">Even spread<i class="q" data-help="A 4×4 spread across the noise, at a spacing that deliberately does not divide the payout box evenly. It is the baseline the experiment falls back to.">?</i></button>
+        <button id="sameAsLast" class="helped">Repeat last hand<i class="q" data-help="Puts last round's hand back, re-anchored on this round's prediction. The shape means the same thing every round, which is what makes a hand something you can score twice.">?</i></button>
+      </div>
+      <p class="hint">One click lays the whole hand; a second click takes it back while the table
+        still holds it untouched.</p>
+    </details>
+
+    <details class="panel" id="panelTable">
+      <summary><span class="legend">The table</span><span class="digest" id="digestTable"></span></summary>
       <label for="preset">Which table</label>
       <select id="preset"></select>
       <canvas id="preview" height="74"></canvas>
@@ -532,52 +626,35 @@
           table is linear before the page sees it.</p>
       </details>
 
-      <p class="group">Preset predictors</p>
-      <div class="row presetRow">
-        <button id="coverTable" class="helped">Cover the noise support<i class="q" id="coverTableHelp" data-help="">?</i></button>
-        <button id="evenGrid" class="helped">Even spread<i class="q" data-help="A 4×4 spread across the noise, at a spacing that deliberately does not divide the payout box evenly. It is the baseline the experiment falls back to.">?</i></button>
-        <button id="sameAsLast" class="helped">Repeat last hand<i class="q" data-help="Puts last round's hand back, re-anchored on this round's prediction. The shape means the same thing every round, which is what makes a hand something you can score twice.">?</i></button>
+      <p class="group">How it is drawn</p>
+      <select id="surface"></select>
+      <p class="hint">Same game either way; the flat table needs no GPU.</p>
+      <label class="teachOpt"><input type="checkbox" id="snap"><span>snap to grid</span><i class="q" data-help="On: stacks land on payout squares, so your squares tile the table and a landing is worth exactly one stack. Off: a grid three times finer -- a third of a cell apart -- which is as close as two stacks can stand without touching.">?</i></label>
+      <div class="row" style="margin-top:8px">
+        <button id="resetView" class="helped quiet">Recentre the table<i class="q" data-help="Undoes your zoom, your turn and any dragging of the table, and frames the round the way it was written. Dragging with two fingers (or Shift+drag) moves the table; press 0 for the same thing without opening this panel.">?</i></button>
       </div>
-      <p class="hint">One click lays the whole hand; a second click takes it back while the table still holds it untouched.</p>
+    </details>
 
-      <p class="group">This run</p>
+    <details class="panel" id="panelRun">
+      <summary><span class="legend">This run</span><span class="digest" id="digestRun"></span></summary>
       <label for="roundsPerRun">One run lasts</label>
       <select id="roundsPerRun"></select>
       <label for="eps">Payout radius &epsilon;</label>
       <select id="eps"></select>
       <label for="run">Which saved run</label>
       <select id="run"></select>
-      <p class="hint" id="digestRun"></p>
       <p class="hint">Runs are pre-recorded draws: Run 3 plays the same noise every time, so only
         your stacks change. Export records the run, which is what lets the script replay it.</p>
+
+      <p class="group">Between rounds</p>
+      <label class="teachOpt"><input type="checkbox" id="keepLayout"><span>keep my layout</span><i class="q" data-help="Carries this round's hand into the next one, re-anchored on the new prediction. It starts on, because a hand is meant to be a rule you can score twice; turn it off to start each round with an empty table.">?</i></label>
+      <label class="teachOpt"><input type="checkbox" id="autoContinue"><span>auto next round</span><i class="q" data-help="After a round settles, move to the next one after a pause. It does not place or change your hand -- that is the play button beside Deal. The run still stops at the end.">?</i></label>
+
       <div class="row" style="margin-top:8px">
-        <button id="restartRun">Restart run</button>
+        <button id="restartRun" class="quiet">Restart run</button>
       </div>
       <p class="hint">Restart asks for a second press; there is no undo. Keep my layout still
         applies to the new run.</p>
-
-      <p class="group">Table display</p>
-      <label for="surface">How it is drawn</label>
-      <select id="surface"></select>
-      <p class="hint">Same game either way; the flat table needs no GPU.</p>
-      <label class="teachOpt"><input type="checkbox" id="snap"><span>snap to grid</span><i class="q" data-help="On: stacks land on payout squares, so your squares tile the table and a landing is worth exactly one stack. Off: a grid three times finer -- a third of a cell apart -- which is as close as two stacks can stand without touching.">?</i></label>
-      <details id="explain">
-        <summary>What am I actually doing?</summary>
-        <p class="hint">
-          Three things on this screen are the three things the package is made of, and the page is
-          a second, visible implementation of the same rule.
-        </p>
-        <div class="map">
-          <b>the moving puck</b><span>a stochastic dynamical system with a known drift — the table you picked</span>
-          <b>your stacks</b><span>a probabilistic predictor: a pmf over where the puck will be, whose heights are its weights</span>
-          <b>the payout</b><span>the <code>epsilon</code>-logarithm score: <code>log</code> of the share of your bet that landed within <code>&epsilon;</code></span>
-        </div>
-        <p class="hint">
-          The table's own movement is <em>given</em> — that is the setting: the nominal model is
-          known, the noise is not. Only the percentages on the stacks matter: a weight on its own
-          is a free parameter, which is why the page never asks you to pick one.
-        </p>
-      </details>
     </details>
 
     <details class="panel" id="panelData">
@@ -598,7 +675,7 @@
         <p id="chartTip" hidden></p>
       </div>
       <details>
-        <summary>This hand, stack by stack<span class="digest" id="digestMoves"></span></summary>
+        <summary>This hand, stack by stack</summary>
         <table id="stackList"></table>
         <p class="hint" id="stackSummary"></p>
       </details>
@@ -641,10 +718,8 @@
 <div id="tour" hidden role="note" aria-live="polite">
   <p id="tourText"></p>
   <div class="tourRow">
-    <button id="tourBack" class="link" disabled>Back</button>
     <span id="tourStep" class="tourStep"></span>
     <button id="tourSkip" class="link">Skip</button>
-    <button id="tourNext" class="primary" disabled>Next</button>
   </div>
 </div>
 
@@ -655,16 +730,36 @@
     <p class="hint">Bet on where the puck lands next. A taller stack is a bigger share; every stack
       within <code>&epsilon;</code> of the landing pays.</p>
 
+    <!-- This used to be a folded row in the settings panel, where it was the one item that was not
+         a setting. It answers a question about the picture, so it belongs where the picture is
+         explained. -->
+    <h3>What am I actually doing?</h3>
+    <p class="hint">
+      Three things on this screen are the three things the package is made of, and the page is a
+      second, visible implementation of the same rule.
+    </p>
+    <div class="map">
+      <b>the moving puck</b><span>a stochastic dynamical system with a known drift — the table you picked</span>
+      <b>your stacks</b><span>a probabilistic predictor: a pmf over where the puck will be, whose heights are its weights</span>
+      <b>the payout</b><span>the <code>epsilon</code>-logarithm score: <code>log</code> of the share of your bet that landed within <code>&epsilon;</code></span>
+    </div>
+    <p class="hint">
+      The table's own movement is <em>given</em> — that is the setting: the nominal model is
+      known, the noise is not. Only the percentages on the stacks matter: a weight on its own is a
+      free parameter, which is why the page never asks you to pick one.
+    </p>
+
     <h3>The gestures</h3>
     <table>
       <tr><td class="g">Tap the felt</td><td>put a stack there; while one is selected, the first tap elsewhere only closes its toolbar</td></tr>
       <tr><td class="g">Tap a stack</td><td>select it; tap again to let go. Shift-click adds it to a group</td></tr>
       <tr><td class="g">Drag a stack</td><td>move it; with several selected the group moves, or nothing does if a destination is taken</td></tr>
       <tr><td class="g">Drag the felt</td><td>turn the table; in Select mode this draws a box instead</td></tr>
-      <tr><td class="g">Scroll / pinch</td><td>zoom</td></tr>
+      <tr><td class="g">Two fingers</td><td>pinch to zoom, and slide the pair to move the table out from under the tour card. On a computer, hold <b>Shift</b> while dragging</td></tr>
+      <tr><td class="g">Scroll</td><td>zoom</td></tr>
       <tr><td class="g">Select</td><td>tap stacks or drag a box; the slider, &minus;/&plus; and Remove then act on all of them. Turn it off to place new stacks</td></tr>
-      <tr><td class="g">D</td><td>deal / next round &nbsp;·&nbsp; <b>P</b> hide the panel &nbsp;·&nbsp; <b>?</b> this guide</td></tr>
-      <tr><td class="g">Any <b>?</b> badge</td><td>every non-obvious control explains itself. The switches on the table are <b>see</b> and <b>auto</b>; the rest are in the panel</td></tr>
+      <tr><td class="g">D</td><td>deal / next round &nbsp;·&nbsp; <b>P</b> panel &nbsp;·&nbsp; <b>0</b> recentre &nbsp;·&nbsp; <b>?</b> this guide</td></tr>
+      <tr><td class="g">Any <b>?</b> badge</td><td>every non-obvious control explains itself. The switches on the table are the two under <b>see</b>; everything else is in the panel</td></tr>
     </table>
 
     <h3>The three things you will do most</h3>
@@ -674,7 +769,7 @@
       &minus;/&plus; moves a stack by 12% a press, or hold to repeat.</p>
 
     <h3>Safe, and what par is</h3>
-    <p class="hint"><b>Cover the noise support</b> (Game settings → Preset predictors) lays equal
+    <p class="hint"><b>Cover the noise support</b> (Your hand, in the panel) lays equal
       stacks whose <code>&epsilon;</code> squares tile the support: no landing pays nothing. On
       skewed noise safe is not best — aiming at the fat band pays more and can pay nothing.
       <b>Par</b> is the best average any hand could reach: a line to watch, not a target. One table
@@ -688,17 +783,19 @@
 
     <h3>How a run ends</h3>
     <p class="hint">A run is the number of rounds you chose; it ends when they run out or a round
-      pays nothing (&minus;&infin;). A settled round stops so you can read it. <b>auto next round</b>
-      advances after a pause; <b>auto all rounds</b> also places and deals. Both stop with the run.</p>
+      pays nothing (&minus;&infin;). A settled round stops so you can read it. The play button
+      beside <b>Deal</b> deals, settles and deals again, reusing your hand, until the run ends --
+      and the same button pauses it. <b>auto next round</b> in the panel only advances a settled
+      round, without betting for you. Both stop with the run.</p>
 
     <h3>Teaching mode</h3>
     <p class="hint">The tour starts on every visit as a card in the table's lower-left corner, and
       a bouncing arrow points at the one thing each step is about. The page stays live underneath.
-      The card's <b>Next</b> only unlocks after you have done what the step asks; <b>Back</b>
-      returns to the previous step and undoes nothing on the table. <b>Skip</b> closes it for this
-      visit and keeps the empty-table hint out of the way; the teaching switch next to Hide panel
-      brings it back, and Show the tour below restarts it. Nothing is saved between visits.</p>
-    <button id="guideTour" class="tiny">Show the tour</button>
+      A step ends when you have done what it asks: the card's edge turns green, and a moment later
+      the next step takes its place. <b>Skip</b> closes it for this visit and keeps the empty-table
+      hint out of the way. The button below is the switch: it starts the tour again, or turns it
+      off for this visit. Nothing is saved between visits.</p>
+    <button id="guideTour" class="tiny" aria-pressed="true">Show the tour</button>
   </div>
 </div>
 

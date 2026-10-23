@@ -15,6 +15,7 @@
 
 import { CHART, PALETTE, feltOf } from './theme.js';
 import { DISC_ASPECT, arrowJoints, landingFade } from './world.js';
+import { wheelZoom } from './gestures.js';
 
 /** How big an arrowhead is, as a fraction of the canvas' short side. An open "→" reads smaller
  *  than the solid wedge it replaced, so it is drawn a little larger to carry the same weight. */
@@ -54,9 +55,8 @@ export function createFlatScene(canvas) {
   // camera's target does. `pick` reads *this* rather than the view's centre, because otherwise a
   // tap would be answered by a picture the player is not looking at.
   let shown = null;
-  // The span eases too. It is what turns "the frame changed" into "the camera moved" -- and the
-  // easing happens while the table is empty (`view.handAlpha`), so there are no two frames on
-  // screen to compare.
+  // The span eases too. It is what turns "the frame changed" into "the camera moved"; the span is
+  // decided per run, so in practice this only moves when the hand changes size.
   let shownSpan = null;
 
   function render(view) {
@@ -71,7 +71,7 @@ export function createFlatScene(canvas) {
     const centre = [shown[0] + pan[0], shown[1] + pan[1]];
     last = { span, centre };
     const scale = Math.min(width, height) / (2 * span);
-    const geom = { scale, radius: view.radius * scale, handAlpha: view.handAlpha };
+    const geom = { scale, radius: view.radius * scale };
     const toPixel = (point) => [
       width / 2 + (point[0] - centre[0]) * scale,
       height / 2 - (point[1] - centre[1]) * scale,
@@ -100,15 +100,13 @@ export function createFlatScene(canvas) {
     }
     ctx.globalAlpha = 1;
 
-    // Everything from here on is the hand, and the hand has its own visibility: it leaves before
-    // the camera moves and arrives after it, so nothing is ever sliding while the camera swings.
-    geom.handAlpha = view.handAlpha;
-
     // Every stack's neighbourhood, so the coverage is visible rather than inferred: where two
     // squares meet, the stacks behind them share a landing. The squares may overlap -- the discs
     // may not, which is why the discs are sized from the footprint and these from epsilon.
+    // The hand is always solid: it is the thing that moves between rounds now, and a hand that
+    // fades out would be hiding the one motion the round is about.
     ctx.lineWidth = Math.max(1, 1.2 * (width / 620));
-    ctx.globalAlpha = view.handAlpha;
+    ctx.globalAlpha = 1;
     if (view.eps > 0) {
       for (const stack of view.stacks) {
         const [x, y] = toPixel(stack.at);
@@ -144,7 +142,7 @@ export function createFlatScene(canvas) {
       ];
     },
     zoom(deltaY) {
-      this.zoomBy(deltaY > 0 ? 1.08 : 0.93);
+      this.zoomBy(wheelZoom(deltaY));
     },
     /** A pinch hands in a ratio: below one means closer. */
     zoomBy(factor) {
@@ -152,8 +150,17 @@ export function createFlatScene(canvas) {
     },
     /** On the flat table, dragging the felt pans it -- there is no camera to turn. */
     orbit(dx, dy) {
+      this.panBy(dx, dy);
+    },
+    /** The same slide, from the two-finger gesture or Shift+drag. */
+    panBy(dx, dy) {
       const scale = Math.min(canvas.width, canvas.height) / (2 * last.span);
       pan = [pan[0] - dx / scale, pan[1] + dy / scale];
+    },
+    /** Back to the frame the rounds are written for. */
+    resetView() {
+      pan = [0, 0];
+      zoom = 1;
     },
     pan: () => pan,
     project(point) {
@@ -354,7 +361,7 @@ function drawStack(ctx, stack, at, settleT, geom) {
   const alpha = stack.state === 'miss' ? 1 - 0.45 * settleT : 1;
   const pulse = stack.state === 'hit' ? 1 + 0.25 * settleT * (1 + Math.sin(settleT * Math.PI * 6)) / 2 : 1;
 
-  ctx.globalAlpha = alpha * geom.handAlpha;
+  ctx.globalAlpha = alpha;
   for (let i = 0; i < count; i += 1) {
     const top = i === count - 1;
     const height = top && partial > 0 ? disc * partial : disc;

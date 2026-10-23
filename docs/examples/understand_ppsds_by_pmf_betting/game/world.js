@@ -83,51 +83,59 @@ export function viewSpan(here, predicted, eps) {
 }
 
 /**
- * The view: the box that has to be on screen, and how much room shows it.
+ * The span a whole run needs: the widest `viewSpan` it will ever ask for, over every step it will
+ * play.
+ *
+ * This is the number the *camera* uses, and it is deliberately not the span of the moment. A frame
+ * fitted to the moment grows as the drift opens the gap between the puck and its prediction, and
+ * every growth is the hand getting smaller: on the Long Table the per-round span ran 3.03 → 8.36
+ * in six rounds, so the towers the player had built shrank by two thirds for a reason that had
+ * nothing to do with them. Deciding the span for the run costs the first round a slightly wider
+ * frame and buys a hand that keeps the size the player gave it for the whole run -- the camera can
+ * then only pan, and a pan does not resize anything.
+ */
+export function runSpan(preset, states, eps) {
+  let widest = 0;
+  for (const step of states) {
+    widest = Math.max(widest, viewSpan(step, nominalNext(preset, step), eps));
+  }
+  return widest;
+}
+
+/**
+ * The view: where it is pointed, and how much it shows.
  *
  * The centre is the middle of the puck, the prediction and the stacks' **resting** places -- not
  * of wherever the stacks are while they glide. That is what makes a round change read as the hand
  * sliding across a table that stays put, rather than the whole felt lurching and the hand catching
  * up to it.
  *
- * The span is clamped. The floor is `viewSpan`, so an empty table frames exactly as it did before
- * there was anything to place; the ceiling stops a stack dropped near the edge of the screen from
- * ratcheting the view outwards a little further every round.
+ * `floor` is `runSpan` -- the span the whole run needs, not the one this moment needs -- so the
+ * zoom is decided once per run and the camera can only pan. A frame fitted to the moment grew every
+ * round as the drift opened up, and a growing frame is the hand shrinking (see `runSpan`).
  *
- * `tower` is the height of the tallest stack in the hand, and it is the one thing that may lift
- * the span through that ceiling: a weight is a height, so a stack the player made tall is the
- * player's own doing rather than a ratchet, and the camera has to back off until it fits. Lower
- * the stack and the frame comes back in.
+ * The hand may still lift the span above the floor, up to `2 * floor`: a stack parked near the
+ * edge of the frame has to be visible, but it must not be able to ratchet the view outwards a
+ * little further every round. That ceiling is the old rule, kept because it is about the player's
+ * own doing rather than the system's.
  *
- * `past` is where the ball has already landed this run. The puck never moves on its own -- the
- * system moves and the puck is where it went -- so the trail behind it is the only place that
- * motion is visible, and a frame fitted to the hand alone lets the trail walk off the edge as the
- * system drifts. Keeping it on screen is what makes a run look like one system moving rather than
- * a table that keeps teleporting.
+ * `tower` is the height of the tallest stack, and it is the one thing that may lift the span
+ * through that ceiling: a weight is a height, so a stack the player made tall is the player's own
+ * doing, and the camera backs off until it fits. Lower the stack and the frame comes back in.
  *
- * The trail **widens** the frame; it does not move it. The centre stays on the hand, because the
- * hand is where the player is looking, and the span grows only as far as the same `2 * floor`
- * ceiling allows -- a run that wanders further than that shows as much trail as fits and no more.
- * Widening is bounded, so a long run zooms out once and holds instead of creeping outwards every
- * round; centring on the trail instead would eventually walk the puck itself off the screen, which
- * is the one thing the frame exists to prevent. `[]` -- a run with no rounds behind it -- frames
- * exactly as it did before this argument existed.
+ * The trail behind the puck used to widen the frame. It no longer does: on any table that drifts
+ * the trail's reach grows without bound, so the frame followed it outwards every round and the hand
+ * shrank with it. The wake is now drawn as far as the frame holds and clipped past its edge -- the
+ * motion it was there to show is carried by the camera panning after the hand instead.
  */
-export function frameBox(here, predicted, resting, eps, tower = 0, past = []) {
-  const floor = viewSpan(here, predicted, eps);
+export function frameBox(here, predicted, resting, eps, floor, tower = 0) {
   const points = [here, predicted, ...resting];
   const xs = points.map((point) => point[0]);
   const ys = points.map((point) => point[1]);
   const centre = [0.5 * (Math.min(...xs) + Math.max(...xs)), 0.5 * (Math.min(...ys) + Math.max(...ys))];
   const half = 0.5 * Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
   const hand = Math.min(2 * floor, Math.max(floor, half + 2 * eps + 1.0));
-
-  let span = hand;
-  for (const point of past) {
-    const reach = Math.max(Math.abs(point[0] - centre[0]), Math.abs(point[1] - centre[1]));
-    span = Math.max(span, Math.min(2 * floor, reach + 2 * eps + 1.0));
-  }
-  return { centre, span: Math.max(span, TOWER_ROOM * tower) };
+  return { centre, span: Math.max(hand, TOWER_ROOM * tower) };
 }
 
 /** The smoothstep both the easing paths share: `3t² - 2t³`, clamped to `[0, 1]`. */

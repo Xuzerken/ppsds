@@ -406,7 +406,8 @@ result.autoContinue = {
 };
 
 // 7e. The tour is a pure, gated state machine: a step cannot be left until the table is in the
-//     state it asks for, and Back re-reads a step without touching the table.
+//     state it asks for. There is no Back: the card advances itself, so a step that was undone
+//     would be pushed forward again a beat later.
 const freshTour = tutorial.createTutorial();
 const ctx = [
   { prediction: true },
@@ -429,7 +430,6 @@ for (let i = 0; i < ctx.length; i += 1) {
   walk = tutorial.tutorialNext(walk, ctx[i]);
 }
 const gatedAtStart = tutorial.tutorialNext(freshTour, {}).index;
-const backToStart = tutorial.tutorialBack(tutorial.tutorialNext(freshTour, ctx[0]));
 const skippedTour = tutorial.tutorialSkip(walk);
 const reopenedTour = tutorial.tutorialReopen(skippedTour);
 const disabledTour = tutorial.tutorialSetEnabled(reopenedTour, false);
@@ -450,7 +450,6 @@ result.tutorial = {
   blockedWithoutItsAction,
   gatedAtStart,
   finished: tutorial.tutorialStep(walk),
-  backToStart: tutorial.tutorialStep(backToStart).id,
   skipped: tutorial.tutorialStep(skippedTour),
   reopened: tutorial.tutorialStep(reopenedTour).id,
   disabled: tutorial.tutorialStep(disabledTour),
@@ -520,30 +519,40 @@ result.lattice = [0.1, 0.25, 0.5, 0.75].map((each) => {
   };
 });
 
-// 10. The frame. With nothing on the table it is `viewSpan` exactly -- the view does not change
-//     until there is something to show -- and with a hand on it, the box holds every stack, the
-//     puck and the prediction.
+// 10. The frame. The **span** is the run's (`runSpan`), so it does not move when the hand or the
+//     drift does; the **centre** is the moment's, which is what pans. With nothing on the table the
+//     frame is the run's span exactly, and with a hand on it the box holds every stack, the puck and
+//     the prediction.
 play.restart(0);
 play.clearStacks();
-const empty = play.view(0);
+// Read after the round change has finished: during the slide the camera is deliberately still
+// showing the frame it had, which is the previous section's hand, not this one.
+const empty = play.view(10000);
 play.coverTable();
-const full = play.view(0);
+const full = play.view(10000);
+const geometrySpan = world.viewSpan(play.here(), play.predicted(), play.state.eps);
 result.frame = {
   spanEmpty: empty.span,
-  spanFloor: world.viewSpan(play.here(), play.predicted(), play.state.eps),
+  spanRun: world.runSpan(presets.shear,
+    trajectories.shear.states[play.state.runIndex].slice(0, play.state.runLength + 1),
+    play.state.eps),
   centreEmpty: empty.centre,
   midpoint: [0.5 * (play.here()[0] + play.predicted()[0]),
              0.5 * (play.here()[1] + play.predicted()[1])],
-  radiusShared: full.radius === world.discRadius(play.state.eps, empty.span),
+  // The discs and the lattice are sized from the *geometry* span, which deliberately does not
+  // follow the camera: a stack's radius must not change when the view does.
+  radiusShared: full.radius === world.discRadius(play.state.eps, geometrySpan),
   covers: full.stacks.every((stack) => Math.abs(stack.at[0] - full.centre[0]) <= full.span
     && Math.abs(stack.at[1] - full.centre[1]) <= full.span),
+  // A hand can widen the frame up to the old ceiling, but it is the *same* frame otherwise.
   neverFurtherThanDouble: full.span <= 2 * empty.span + 1e-9,
+  handDoesNotZoom: full.span === empty.span,
 };
 
-// 11. The change between two rounds: three beats. The hand leaves where it stood, the camera moves
-//     across a table with nothing on it to compare against, and the hand arrives already in its new
-//     place -- so nothing is ever sliding while the camera swings. All three are a function of
-//     `now`, which is what lets them be sampled here instead of watched.
+// 11. The change between two rounds: **the hand moves first, the camera second** -- never both at
+//     once. `now` decides which beat is running, so the order can be sampled here instead of
+//     watched. The two things that matter: during the slide the camera holds the frame it had, and
+//     the hand is on screen the whole time (it is the thing that is moving).
 play.restart(0);
 play.clearStacks();
 // The safe layout, so the round cannot miss: a round that pays nothing ends the run, and this
@@ -553,24 +562,40 @@ play.deal(0);
 play.settle(game.THROW_MS);
 play.state.keepLayout = true;
 const atBefore = play.view(game.THROW_MS).stacks[0].at;
+const centreBefore = play.view(game.THROW_MS).centre;
 play.nextRound(game.THROW_MS);
 const near = (point, x, y) => Math.abs(point[0] - x) < 1e-7 && Math.abs(point[1] - y) < 1e-7;
-const leavingBeat = play.view(game.THROW_MS);
-const cameraBeat = play.view(game.THROW_MS + game.HAND_OUT_MS + game.CAMERA_MOVE_MS / 2);
-const arrivingBeat = play.view(game.THROW_MS + game.HAND_OUT_MS + game.CAMERA_MOVE_MS
-  + game.HAND_IN_MS / 2);
+// Three samples: the first frame of the slide, the middle of it, and the camera beat after it.
+const startBeat = play.view(game.THROW_MS);
+const slideBeat = play.view(game.THROW_MS + game.HAND_SLIDE_MS / 2);
+const cameraBeat = play.view(game.THROW_MS + game.HAND_SLIDE_MS + game.CAMERA_MOVE_MS / 2);
 const arrived = play.view(game.THROW_MS + game.TRANSITION_MS);
+const atAfter = arrived.stacks[0].at;
 result.change = {
-  leaving: {
-    hand: leavingBeat.handAlpha,
-    leaving: leavingBeat.leaving.length,
-    leavingWhereItWas: near(leavingBeat.leaving[0].at, atBefore[0], atBefore[1]),
-    leavingOpaque: leavingBeat.leaving[0].alpha,
-    active: leavingBeat.entering,
+  start: {
+    // The hand is where it stood when the round turned over, and it is visible.
+    handAtOldAnchor: near(startBeat.stacks[0].at, atBefore[0], atBefore[1]),
+    cameraHeld: near(startBeat.centre, centreBefore[0], centreBefore[1]),
+    active: startBeat.entering,
+    visible: startBeat.stacks.length,
   },
-  camera: { hand: cameraBeat.handAlpha, leaving: cameraBeat.leaving.length },
-  arriving: { hand: arrivingBeat.handAlpha, leaving: arrivingBeat.leaving.length },
-  arrived: { hand: arrived.handAlpha, leaving: arrived.leaving.length, active: arrived.entering },
+  slide: {
+    // Halfway: the hand is between the two anchors, and the camera has still not moved.
+    handBetween: !near(slideBeat.stacks[0].at, atBefore[0], atBefore[1])
+      && !near(slideBeat.stacks[0].at, atAfter[0], atAfter[1]),
+    cameraHeld: near(slideBeat.centre, centreBefore[0], centreBefore[1]),
+  },
+  camera: {
+    // The hand has arrived and is standing still; now the camera moves.
+    handArrived: near(cameraBeat.stacks[0].at, atAfter[0], atAfter[1]),
+    cameraMoved: !near(cameraBeat.centre, centreBefore[0], centreBefore[1]),
+    centreAtTarget: near(cameraBeat.centre, arrived.centre[0], arrived.centre[1]),
+  },
+  arrived: { active: arrived.entering, span: arrived.span },
+  // Whatever the camera did, it did not resize the hand: a round is a move, not a zoom.
+  spanUnchanged: startBeat.span === play.view(game.THROW_MS + game.TRANSITION_MS).span
+    && slideBeat.span === cameraBeat.span,
+  oldHandGone: startBeat.leaving.length === 0,
 };
 
 // 11b. The layout is dropped unless the player keeps it -- and the dropping is animated too, so it
@@ -584,9 +609,11 @@ const droppedAt = game.TRANSITION_MS + 2 * game.THROW_MS;
 play.nextRound(droppedAt);
 result.discard = {
   goneAtOnce: play.state.stacks.length === 0,
+  // A hand that is not coming back has to leave where it stood: it is the only `leaving` list the
+  // page still draws, because a kept hand now travels instead of fading.
   leaves: play.view(droppedAt).leaving.length,
   opaqueAtStart: play.view(droppedAt).leaving.every((stack) => Math.abs(stack.alpha - 1) < 1e-9),
-  handStaysEmpty: play.view(droppedAt + game.TRANSITION_MS).handAlpha,
+  handStaysEmpty: play.view(droppedAt + game.TRANSITION_MS).stacks.length === 0,
   goneByTheEnd: play.view(droppedAt + game.TRANSITION_MS).leaving.length,
   dealRefused: play.deal(droppedAt + game.TRANSITION_MS) === false,
 };
@@ -675,6 +702,50 @@ const tappedStack = gestures.pointerUp(onStack, { id: 1, x: 10, y: 10 });
 const onFelt = gestures.createGestureState();
 gestures.pointerDown(onFelt, { id: 1, x: 10, y: 10, hit: null });
 const tappedFelt = gestures.pointerUp(onFelt, { id: 1, x: 10, y: 10 });
+// 15b. A pinch reports the spread *and* the pair's midpoint, and the zoom it hands back is a step
+//      between two samples rather than a ratio from where the pinch began. The second half is the
+//      regression: multiplying by the running ratio made a two-step 10% spread zoom by 21%, which
+//      is what "far too fast to aim" was.
+const pinchState = gestures.createGestureState();
+gestures.pointerDown(pinchState, { id: 1, x: 0, y: 0, hit: null, touch: true });
+gestures.pointerDown(pinchState, { id: 2, x: 100, y: 0, hit: null, touch: true });
+const firstPinch = gestures.pointerMove(pinchState, { id: 2, x: 110, y: 0 });
+const secondPinch = gestures.pointerMove(pinchState, { id: 2, x: 121, y: 0 });
+// Two fingers that slide together without changing their spread: distance constant, midpoint moves.
+const slideState = gestures.createGestureState();
+gestures.pointerDown(slideState, { id: 1, x: 0, y: 0, hit: null, touch: true });
+gestures.pointerDown(slideState, { id: 2, x: 100, y: 0, hit: null, touch: true });
+gestures.pointerMove(slideState, { id: 1, x: 40, y: 30 });
+const slid = gestures.pointerMove(slideState, { id: 2, x: 140, y: 30 });
+result.pinch = {
+  kind: firstPinch.kind,
+  midpointIsMean: Math.abs(firstPinch.x - 55) < 1e-12 && Math.abs(firstPinch.y - 0) < 1e-12,
+  distance: Math.abs(firstPinch.distance - 110) < 1e-12,
+  steps: Math.abs(gestures.pinchZoom(firstPinch.distance, secondPinch.distance)
+    - (110 / 121) ** gestures.PINCH_GAIN) < 1e-12,
+  composes: Math.abs(gestures.pinchZoom(100, 110) * gestures.pinchZoom(110, 121)
+    - gestures.pinchZoom(100, 121)) < 1e-12,
+  // Spreading the fingers zooms in, so the factor is below 1 -- but not as far below as the raw
+  // ratio: doubling the spread must move the camera less than doubling it.
+  damped: gestures.pinchZoom(100, 200) > 0.5 && gestures.pinchZoom(100, 200) < 1,
+  dampedAmount: gestures.pinchZoom(100, 200),
+  undoPair: Math.abs(gestures.pinchZoom(100, 110) * gestures.pinchZoom(110, 100) - 1) < 1e-12,
+  // Two fingers that end where they started, 40 px to the right and 30 px down, with their spread
+  // unchanged: the midpoint is what a pan has to follow, not the first finger.
+  slideMid: [slid.x, slid.y],
+  slideDistance: Math.abs(slid.distance - 100) < 1e-12,
+};
+// A wheel's magnitude matters, and a huge delta saturates instead of flying.
+result.wheel = {
+  tiny: gestures.wheelZoom(2),
+  notch: gestures.wheelZoom(120),
+  clamped: gestures.wheelZoom(5000),
+  sameClamp: Math.abs(gestures.wheelZoom(5000) - gestures.wheelZoom(60)) < 1e-12,
+  out: gestures.wheelZoom(10) > 1,
+  back: gestures.wheelZoom(-10) < 1,
+  halves: Math.abs(gestures.wheelZoom(10) * gestures.wheelZoom(-10) - 1) < 1e-12,
+};
+
 result.gesture = {
   onStack: tappedStack.kind === 'place' && tappedStack.index === 3,
   onFelt: tappedFelt.kind === 'place' && tappedFelt.index === null,
@@ -741,8 +812,8 @@ result.oneWay = {
 // 20. The camera makes room for a tower. A height is a weight and a weight has no ceiling, so the
 //     frame is the only thing between a tall stack and the top of the picture -- and it has to give
 //     the room back when the stack comes down, or the table would shrink and stay shrunk.
-const flatFrame = world.frameBox([0, 0], [0, 0], [], 0.5, 0);
-const tallFrame = world.frameBox([0, 0], [0, 0], [], 0.5, 12);
+const flatFrame = world.frameBox([0, 0], [0, 0], [], 0.5, 3.0, 0);
+const tallFrame = world.frameBox([0, 0], [0, 0], [], 0.5, 3.0, 12);
 play.restart(0);
 play.clearStacks();
 play.placeStack([0, 0]);
@@ -776,23 +847,23 @@ result.landings = {
   oldest: world.landingFade(0, 5),
 };
 
-// 22. The frame makes room for the trail the same way it makes room for a tower -- by widening,
-//     not by moving. The puck never moves on its own, so the landings behind it are the only place
-//     the system's motion is visible; but the frame still cannot follow them indefinitely, or a run
-//     that wanders would walk the puck itself off the screen.
-const noTrail = world.frameBox([0, 0], [0, 0], [], 0.5, 0, []);
-const someTrail = world.frameBox([0, 0], [0, 0], [], 0.5, 0, [[3, 0]]);
-const farTrail = world.frameBox([0, 0], [0, 0], [], 0.5, 0, [[500, 500]]);
-result.trailFrame = {
-  floor: noTrail.span,
-  emptyIsUnchanged: noTrail.span === world.frameBox([0, 0], [0, 0], [], 0.5, 0).span
-    && noTrail.centre[0] === 0 && noTrail.centre[1] === 0,
-  grew: someTrail.span > noTrail.span,
-  centredOnTheHand: someTrail.centre[0] === 0 && someTrail.centre[1] === 0,
-  holds: Math.abs(3 - someTrail.centre[0]) <= someTrail.span,
-  capped: farTrail.span <= 2 * noTrail.span + 1e-9,
-  stillCentred: farTrail.centre[0] === 0 && farTrail.centre[1] === 0,
-  puckStillFramed: Math.abs(0 - farTrail.centre[0]) <= farTrail.span,
+// 22. The span is decided for the whole run, not for the moment.
+//     It used to grow with the drift (3.03 -> 8.36 over six rounds on the Long Table), and every
+//     growth was the player's towers getting smaller. `runSpan` scans the run once; `frameBox` takes
+//     that span and returns only a centre and, if the hand or a tower demands it, a larger one.
+const runStates = trajectories.shear.states[0].slice(0, 21);
+const fixedSpan = world.runSpan(presets.shear, runStates, 0.5);
+const narrowBox = world.frameBox(runStates[1], world.nominalNext(presets.shear, runStates[1]),
+  [], 0.5, fixedSpan);
+result.runFrame = {
+  span: fixedSpan,
+  // The widest moment of the run is what the frame is sized for, so it never needs to grow.
+  coversEveryStep: runStates.every((step) => world.viewSpan(step, world.nominalNext(presets.shear, step), 0.5)
+    <= fixedSpan + 1e-9),
+  steady: narrowBox.span === fixedSpan,
+  // A frame fitted to the moment would have been smaller here -- which is exactly the shrinking.
+  wouldHaveBeenSmaller: world.viewSpan(runStates[1], world.nominalNext(presets.shear, runStates[1]), 0.5)
+    < fixedSpan,
 };
 
 console.log('RESULT ' + JSON.stringify(result));
@@ -984,38 +1055,43 @@ result.dealDisabled = get('stageDeal').disabled;
 result.dealAct = get('stageDeal').dataset.act;
 
 // The tour starts on every visit, and Skip is session-only; the guide's button brings it back.
-// A step is a gate in the shell as well as in the reducer: Next is disabled until the table is in
-// the state the step asks for, and Back goes to the previous step. The first step is the
-// prediction switch itself, so it is driven here through the same change event a player produces.
+// A step is a gate in the shell as well as in the reducer, and the shell *is* the button: it
+// watches the gate on its own clock and advances after a beat. There is nothing to press. The
+// first step is the prediction switch itself, so it is driven here through the same change event
+// a player produces.
 result.tour = {
   visibleAtBoot: get('tour').hidden === false,
   firstText: get('tourText').textContent,
   step: get('tourStep').textContent,
-  teaching: get('teaching').checked,
-  nextDisabledAtBoot: get('tourNext').disabled === true,
-  backDisabledAtBoot: get('tourBack').disabled === true,
+  // Teaching has no switch of its own any more: the guide's button is the control, and it says
+  // which way it will go.
+  guideLabel: get('guideTour').textContent,
+  readyAtBoot: get('tour').dataset.ready,
 };
 get('aimAssist').checked = true;
 get('aimAssist').press('change', { target: get('aimAssist') });
-result.tour.nextAfterPrediction = get('tourNext').disabled === false;
-get('tourNext').press('click');
-result.tour.stepAfterNext = get('tourStep').textContent;
-result.tour.backEnabled = get('tourBack').disabled === false;
-get('tourBack').press('click');
-result.tour.stepAfterBack = get('tourStep').textContent;
+result.tour.readyAfterPrediction = get('tour').dataset.ready;
+// Done, but not yet moved on: the card holds for a beat so its green edge can be read.
+runFrames(1);
+result.tour.readyAfterFrame = get('tour').dataset.ready;
+result.tour.stepBeforeBeat = get('tourStep').textContent;
+runFrames(30, 40);                           // past `TOUR_ADVANCE_MS`
+result.tour.stepAfterBeat = get('tourStep').textContent;
 get('aimAssist').checked = false;            // back to the page's default for the checks below
 get('aimAssist').press('change', { target: get('aimAssist') });
 get('tourSkip').press('click');
 result.tour.hintAfterSkip = get('emptyBet').hidden;
 result.tour.hiddenAfterSkip = get('tour').hidden;
-result.tour.teachingAfterSkip = get('teaching').checked;
-get('guideTour').press('click');
+result.tour.guideAfterSkip = get('guideTour').textContent;
+get('guideTour').press('click');       // the guide's button is the switch: it turns teaching back on
 runFrames(1);
 result.tour.visibleAfterReopen = get('tour').hidden === false;
-result.tour.teachingAfterReopen = get('teaching').checked;
-// Turning teaching off with the switch -- not just Skip -- also silences the static hint.
-get('teaching').checked = false;
-get('teaching').press('change', { target: get('teaching') });
+result.tour.guideAfterReopen = get('guideTour').textContent;
+get('guideTour').press('click');       // and pressing it again turns teaching off for the visit
+runFrames(1);
+result.tour.hiddenAfterGuideOff = get('tour').hidden;
+result.tour.guideAfterGuideOff = get('guideTour').textContent;
+// Off by the guide's button -- not just Skip -- also silences the static hint.
 result.tour.hintAfterTeachingOff = get('emptyBet').hidden;
 
 // The support is one switch with the prediction: drawn while it is on, gone when it is off.
@@ -1062,12 +1138,22 @@ result.rounds = game.state.rounds.length;
 result.step = game.state.step;
 result.keepLayoutAtStart = get('keepLayout').checked;
 
+// The play button beside Deal is the old "auto all rounds", now a two-state control: press to
+// deal on its own, press again to stop. Its state is its icon, so the state has to be readable.
+result.autoAtStart = get('stageAuto').dataset.state;
+get('stageAuto').press('click');
+result.autoPlaying = get('stageAuto').dataset.state;
+get('stageAuto').press('click');   // always stop it: a live interval would keep node awake
+result.autoPaused = get('stageAuto').dataset.state;
+
 // The panel folds away and the table takes the window. Read back off the body, which is what the
 // stylesheet reads too -- no second copy of the state to fall out of step.
 result.sideAtStart = document.body.dataset.side || null;
 get('sideToggle').press('click');
 result.sideHidden = document.body.dataset.side;
-result.sideLabel = get('sideToggle').textContent;
+// The button's word lives in its own span: the button also carries an icon, and the label has to
+// change without taking the icon with it.
+result.sideLabel = get('sideLabel').textContent;
 get('sideToggle').press('click');
 result.sideBack = document.body.dataset.side;
 
@@ -1200,7 +1286,7 @@ def boot_run(module_dir):
 #: reaching for. Everything else in the markup must be something the script actually uses, or one
 #: of the two sides has a typo.
 #: Ids that are markup only -- a layout wrapper, a summary element, a dialog's label.
-LAYOUT_ONLY_IDS = {'bench', 'explain', 'guideTitle', 'guideClose'}
+LAYOUT_ONLY_IDS = {'bench', 'guideTitle', 'guideClose'}
 
 
 def test_every_element_the_page_reaches_for_exists(boot_run):
@@ -1354,7 +1440,11 @@ def test_the_cursor_shows_what_a_click_would_do(boot_run):
 
 def test_the_panel_folds_away(boot_run):
     """The column is a control panel, and a game you cannot stop looking at controls is not
-    immersive. The state lives on the body as an attribute, which is what the stylesheet reads."""
+    immersive. The state lives on the body as an attribute, which is what the stylesheet reads.
+
+    The word lives in its own span because the button also carries an icon; rewriting its
+    `textContent` is what would silently take the icon away.
+    """
     assert boot_run['sideAtStart'] is None
     assert boot_run['sideHidden'] == 'hidden'
     assert boot_run['sideLabel'] == 'Show panel'
@@ -1371,6 +1461,14 @@ def test_keep_my_layout_starts_on(boot_run):
     assert boot_run['keepLayoutAtStart'] is True
 
 
+def test_the_play_button_beside_deal_is_the_auto_switch(boot_run):
+    """Auto deal is an action, not a setting, so it sits with Deal and says its state twice over:
+    a play triangle while it is paused, two bars while it is dealing."""
+    assert boot_run['autoAtStart'] == 'paused'
+    assert boot_run['autoPlaying'] == 'playing', 'the button did not start dealing on its own'
+    assert boot_run['autoPaused'] == 'paused', 'the same button did not pause it'
+
+
 def test_the_deal_button_says_what_it_will_do(boot_run):
     """The icon follows the phase, and the settled button is the one that asks for a press."""
     assert boot_run['dealAct'] == 'deal'
@@ -1379,26 +1477,32 @@ def test_the_deal_button_says_what_it_will_do(boot_run):
 
 
 def test_the_tour_starts_on_and_skip_is_session_only(boot_run):
-    """Every visit starts the tour; Skip lasts until the tab closes; the guide can reopen it."""
+    """Every visit starts the tour; Skip lasts until the tab closes; the guide can reopen it.
+
+    The card has no Next: the shell watches the same gate the reducer does and moves on by itself
+    after a beat. So the two things to pin are "it is not ready at boot" and "it advanced without
+    anyone pressing anything".
+    """
     tour = boot_run['tour']
     assert tour['visibleAtBoot'] is True
     assert tour['step'] == '1 / 6'
-    assert tour['teaching'] is True
-    # The shell wires the gate: Next is dead until the step's action is on the table, and Back is
-    # dead on the first step.
-    assert tour['nextDisabledAtBoot'] is True
-    assert tour['backDisabledAtBoot'] is True
-    assert tour['nextAfterPrediction'] is True, 'Next stayed disabled after prediction was turned on'
-    assert tour['stepAfterNext'] == '2 / 6'
-    assert tour['backEnabled'] is True, 'Back is disabled after the first step'
-    assert tour['stepAfterBack'] == '1 / 6'
+    assert tour['guideLabel'] == 'Turn teaching off', 'the guide does not say what its button does'
+    assert tour['readyAtBoot'] == 'no', 'the first step was done before the player did it'
+    assert tour['readyAfterFrame'] == 'yes', 'the card did not notice the step was done'
+    # The beat: the step number is still the old one immediately after the action, and the next
+    # step is on screen once the clock has passed.
+    assert tour['stepBeforeBeat'] == '1 / 6', 'the card changed before its green edge could be read'
+    assert tour['stepAfterBeat'] == '2 / 6', 'the card did not advance on its own'
     assert tour['hiddenAfterSkip'] is True
-    assert tour['teachingAfterSkip'] is False
+    # One control, two labels: the guide's button is the whole teaching switch.
+    assert tour['guideAfterSkip'] == 'Show the tour', 'the guide cannot bring the tour back'
     # A player who pressed Skip asked not to be talked at; the static "Place your stacks" hint
     # stays away for the visit instead of reappearing in the tour's place.
     assert tour['hintAfterSkip'] is True, 'the empty-table hint came back after Skip'
     assert tour['visibleAfterReopen'] is True
-    assert tour['teachingAfterReopen'] is True
+    assert tour['guideAfterReopen'] == 'Turn teaching off'
+    assert tour['hiddenAfterGuideOff'] is True, 'the guide button did not turn teaching off'
+    assert tour['guideAfterGuideOff'] == 'Show the tour'
     assert tour['hintAfterTeachingOff'] is True, (
         'the empty-table hint came back when teaching was turned off')
 
@@ -1472,7 +1576,9 @@ def test_every_control_that_is_not_carry_on_explains_itself():
     """
     html = (GAME / 'index.html').read_text(encoding='utf-8')
 
-    helped = re.findall(r'(<button[^>]*class="helped"[^>]*>)(.*?)</button>', html, re.S)
+    # A helped button may carry other classes too (`helped quiet` is a rare control that still has
+    # to explain itself), so the class list is matched as a list rather than as one exact string.
+    helped = re.findall(r'(<button[^>]*class="[^"]*\bhelped\b[^"]*"[^>]*>)(.*?)</button>', html, re.S)
     names = set()
     for opening, inner in helped:
         found = re.search(r'id="([^"]+)"', opening)
@@ -1488,15 +1594,18 @@ def test_every_control_that_is_not_carry_on_explains_itself():
         text = re.search(r'data-help="([^"]*)"', inner)
         assert text and len(text.group(1)) > 40, f'the ? badge has nothing to say: {inner[:40]}'
     assert names == {'coverTable', 'evenGrid', 'sameAsLast', 'selectMode', 'clear',
-                     'sumExport', 'copyRound', 'exportRun'}, f'the helped set is {names}'
+                     'sumExport', 'copyRound', 'exportRun', 'stageAuto', 'resetView'}, (
+        f'the helped set is {names}')
 
     options = re.findall(r'<label class="opt"[^>]*>(.*?)</label>', html, re.S)
-    assert len(options) == 5, 'the five round options are pills with a ? each'
+    assert len(options) == 2, 'the two things a round shows are pills with a ? each'
     for inner in options:
         assert 'class="q"' in inner and 'data-help="' in inner
-    # Snap is a placement setting, not a round switch; it explains itself in the panel.
-    snap = re.search(r'<label class="teachOpt">(.*?id="snap".*?)</label>', html, re.S)
-    assert snap and 'class="q"' in snap.group(1) and 'data-help="' in snap.group(1)
+    # Settings, not round switches; they explain themselves where they live.
+    for key in ('snap', 'keepLayout', 'autoContinue'):
+        row = re.search(rf'<label class="teachOpt">(.*?id="{key}".*?)</label>', html, re.S)
+        assert row and 'class="q"' in row.group(1) and 'data-help="' in row.group(1), (
+            f'{key} does not explain itself')
 
     button = re.search(r'<button[^>]*id="stageDeal"[^>]*>(.*?)</button>', html, re.S)
     assert button and 'class="q"' not in button.group(1), 'stageDeal does not need a ? badge'
@@ -1507,52 +1616,83 @@ def test_every_control_that_is_not_carry_on_explains_itself():
     assert 'paid' in settle and 'score' in settle and 'data-help' in settle
 
 
-def test_the_panel_is_three_folded_rows_and_the_options_are_on_the_table():
-    """The column is settings, data and the way out -- one folded row each, so that opening it is a
-    choice rather than the price of playing. Everything a round needs is on the table."""
+def test_the_panel_is_five_folded_rows_in_the_order_you_meet_them():
+    """The column is five folded rows and each one answers a single question.
+
+    It used to be three, and the settings row had seventeen controls in it -- a 1281 px card whose
+    height alone was the argument for splitting it. The split is by *when you would touch it*: the
+    hand every round, the table once, the run once; then the data, then the way out. Only the hand
+    starts open (it is the only one a round makes you come back to), and every row carries its own
+    state in the summary line, so a closed row can be read.
+    """
     html = (GAME / 'index.html').read_text(encoding='utf-8')
     panels = re.findall(r'<details class="panel"([^>]*)>', html)
-    assert len(panels) == 3, f'expected three folded rows, found {len(panels)}'
-    assert 'id="panelTable"' in panels[0]
-    assert 'id="panelData"' in panels[1]
+    assert len(panels) == 5, f'expected five folded rows, found {len(panels)}'
+    for panel, key in zip(panels, ('panelHand', 'panelTable', 'panelRun', 'panelData')):
+        assert f'id="{key}"' in panel, f'{key} is not in the order it is listed in: {panels}'
+    # Exactly one row starts open, and it is the hand.
+    assert sum('open' in panel for panel in panels) == 1, f'opened rows: {panels}'
+    assert 'open' in panels[0], 'the hand is not the row that starts open'
     assert 'panelMoves' not in html, 'the Advanced panel has been emptied and should be gone'
     assert html.index('class="options"') < html.index('class="side"'), (
         'the round options belong on the table, not in the column')
     assert 'assistHint' not in html, 'that hint now lives on the button it is about'
+    # Each settings row says its state where it is folded.
+    for key in ('digestHand', 'digestTable', 'digestRun'):
+        assert f'id="{key}"' in html, f'{key} is missing: that row cannot be read while closed'
 
 
 def test_the_options_are_grouped_by_what_they_do():
-    """Six switches in a row is still a wall, so the table keeps the two that describe the round:
-    what you see and what runs itself. Placement (snap) and the preset layouts live in the panel,
-    where settings belong. Checked in the markup: a switch quietly moved to a group that does not
-    describe it is something no run can see.
+    """The table keeps the switches that describe what you are looking at, and nothing else.
+
+    A first visit's list of six controls was a wall, and the wall was mostly settings: what carries
+    between rounds and what runs itself belong in the panel with the other settings, while "keep
+    dealing" belongs next to Deal -- one press, one icon, its state visible. What stays on the felt
+    is `see`, because it changes what the felt shows.
     """
     html = (GAME / 'index.html').read_text(encoding='utf-8')
     rows = re.findall(r'<div class="optRow">(.*?)</div>', html, re.S)
-    assert len(rows) == 2, f'the table switches are two groups, found {len(rows)}'
+    assert len(rows) == 1, f'the table switches are one group, found {len(rows)}'
     names = [re.search(r'<span class="rowLabel">([^<]*)</span>', row).group(1) for row in rows]
-    assert names == ['see', 'auto'], f'the groups are named {names}'
-    inside = [[i for i in ('aimAssist', 'showHistory', 'keepLayout',
-                           'autoPlay', 'autoContinue')
+    assert names == ['see'], f'the groups are named {names}'
+    inside = [[i for i in ('aimAssist', 'showHistory', 'keepLayout', 'autoPlay', 'autoContinue')
                if f'id="{i}"' in row] for row in rows]
-    assert inside == [['aimAssist', 'showHistory'],
-                      ['keepLayout', 'autoPlay', 'autoContinue']], (
-        f'the switches are grouped as {inside}')
+    assert inside == [['aimAssist', 'showHistory']], f'the switches are grouped as {inside}'
+    assert 'id="autoPlay"' not in html, (
+        'auto-play is a button beside Deal now; a leftover checkbox is a second source of truth')
     # The bottom of the table is the two edit/run groups; the preset layouts are in the panel.
     dock = html[html.index('class="dockRight"'):]
     assert [re.search(r'<span class="rowLabel">([^<]*)</span>', row).group(1)
             for row in re.findall(r'<div class="btnRow">(.*?)</div>', dock, re.S)] == [
                 'edit', 'run']
-    panel = html[html.index('id="panelTable"'):html.index('id="panelData"')]
-    assert 'Preset predictors' in panel
+    # Auto deal is a button beside Deal, not a checkbox anywhere: it is an action, and the icon is
+    # the state.
+    run_row = re.findall(r'<div class="btnRow">(.*?)</div>', dock, re.S)[-1]
+    assert 'id="stageDeal"' in run_row and 'id="stageAuto"' in run_row
+    # Each row holds what its name promises, and nothing that belongs to another.
+    def row(key):
+        """One folded row's markup, up to the next row that starts."""
+        start = html.index(f'id="{key}"')
+        nxt = html.find('<details class="panel"', start + 1)
+        return html[start:nxt if nxt != -1 else len(html)]
+    hand = row('panelHand')
     for key in ('coverTable', 'evenGrid', 'sameAsLast'):
-        assert f'id="{key}"' in panel, f'{key} is not in the settings panel'
-    assert 'id="snap"' in panel, 'snap is not in the settings panel'
-    # Teaching belongs with the window controls, and the duplicated floating "?" is gone: the
-    # guide's link is in the header (and the empty-table hint), which is always reachable.
+        assert f'id="{key}"' in hand, f'{key} is not with the hand'
+    table = row('panelTable')
+    for key in ('preset', 'surface', 'snap', 'resetView'):
+        assert f'id="{key}"' in table, f'{key} is not with the table'
+    run_panel = row('panelRun')
+    for key in ('roundsPerRun', 'eps', 'run', 'keepLayout', 'autoContinue', 'restartRun'):
+        assert f'id="{key}"' in run_panel, f'{key} is not with the run'
+    assert 'id="keepLayout"' not in table and 'id="snap"' not in run_panel, (
+        'a setting is filed under the wrong row')
     actions = re.search(r'<div class="actions">(.*?)</div>', html, re.S).group(1)
-    assert 'id="teaching"' in actions, 'the teaching switch is not beside Hide panel'
+    assert 'id="sideToggle"' in actions and 'id="helpIcon"' in actions
     assert 'id="helpOpen"' not in html, 'the floating ? came back next to the always-present link'
+    # Teaching has no switch of its own: the guide's button is the control, one press either way.
+    assert 'id="teaching"' not in html, 'the teaching checkbox came back next to the guide button'
+    guide = html[html.index('id="guideTitle"'):]
+    assert 'id="guideTour"' in guide
 
 
 def test_the_three_d_renderer_cannot_lose_the_prediction_marker():
@@ -1743,17 +1883,16 @@ def test_auto_continue_is_a_decision_not_a_timer(node_run):
 
 
 def test_the_tour_starts_on_is_gated_and_can_be_reopened(node_run):
-    """Session-only teaching: start on, every step waits for its own action, back, skip, re-open."""
+    """Session-only teaching: start on, every step waits for its own action, skip, re-open."""
     tour = node_run['tutorial']
     assert tour['fresh'] == 'prediction'
     assert tour['walk'] == ['prediction', 'place', 'cover', 'height', 'deal', 'next']
     # Each step is ready only when its own action is on the table; the step before it is not
-    # enough, which is what makes "Next" a verdict rather than a click.
+    # enough, which is what makes the step a verdict rather than a click.
     assert tour['readyAt'] == [True] * 6
     assert tour['blockedWithoutItsAction'] == [True] * 6
-    assert tour['gatedAtStart'] == 0, 'Next moved on before prediction was on'
+    assert tour['gatedAtStart'] == 0, 'the tour moved on before prediction was on'
     assert tour['finished'] is None
-    assert tour['backToStart'] == 'prediction', 'Back did not return to the previous step'
     assert tour['skipped'] is None
     assert tour['reopened'] == 'prediction'
     assert tour['disabled'] is None
@@ -1763,9 +1902,37 @@ def test_the_tour_starts_on_is_gated_and_can_be_reopened(node_run):
     assert tour['pinnedLeftGap'] == 12 and tour['pinnedDockGap'] == 12
     assert tour['crowdedTop'] == 12, 'a short table pushed the card off the felt'
     covered = set(tour['covers'])
-    assert {'tap', 'place', 'drag-stack', 'orbit', 'wheel', 'pinch', 'support', 'cover', 'safe',
+    # Gestures are still the tour's business: moving the table out from under the card is one of
+    # the things it has to teach, or the card is in the way of its own instructions.
+    assert {'tap', 'place', 'orbit', 'pinch', 'pan', 'support', 'cover', 'safe',
             'select-stack', 'height', 'toolbar', 'deal', 'result', 'next-round',
             'keep-layout'} <= covered
+
+
+def test_a_pinch_is_a_sequence_of_steps_not_one_ratio(node_run):
+    """Two fingers zoom and slide: the zoom is incremental, damped, and commutes between samples."""
+    pinch = node_run['pinch']
+    assert pinch['kind'] == 'pinch'
+    assert pinch['midpointIsMean'], 'a pinch must report where the pair is, not where one finger is'
+    assert pinch['distance'], 'the pinch spread is the distance between the two fingers'
+    assert pinch['steps'], 'the zoom handed back is the ratio between the last two samples'
+    # The regression: 100→110 then 110→121 has to equal 100→121 exactly. The old shell multiplied
+    # by `start / now` on every event, so the two-step spread composed to 1.21 instead of 1.21**0.8.
+    assert pinch['composes'], 'pinch steps do not compose -- the zoom is compounding again'
+    assert pinch['damped'], 'a doubled finger spread must not double the zoom'
+    assert pinch['undoPair'], 'spreading and closing the same amount must cancel exactly'
+    assert pinch['slideMid'] == [90, 30], 'the pair moved 40 right and 30 down'
+    assert pinch['slideDistance'], 'moving both fingers together must not change their spread'
+
+
+def test_a_wheel_delta_is_a_magnitude(node_run):
+    """A trackpad's 2 px stream and a mouse's 120 px notch are not the same step."""
+    wheel = node_run['wheel']
+    assert wheel['out'] and wheel['back']
+    assert wheel['tiny'] < wheel['notch'], 'a 2 px delta zoomed as hard as a whole notch'
+    assert wheel['clamped'] < 1.2, 'a flick reported thousands of pixels and flew'
+    assert wheel['sameClamp'], 'the delta is not clamped'
+    assert wheel['halves'], 'wheel in and wheel out by the same amount must cancel'
 
 
 def test_the_tallest_height_fits_the_frame(node_run):
@@ -1805,53 +1972,63 @@ def test_the_finer_lattice_can_never_produce_an_overlap(node_run):
 
 
 def test_the_view_frames_the_hand_without_creeping(node_run):
-    """The camera follows the hand now, which is two new ways to get it wrong: it must not change
-    on an empty table, and it must not let a stack parked at the edge of the screen ratchet the
-    view outwards a little further every round."""
+    """The span is the run's, so the camera can only pan -- and a pan does not resize the hand.
+
+    This is the rule that stops a run from slowly zooming out. A frame fitted to the moment grew
+    with the drift (3.03 -> 8.36 over six rounds on the Long Table) and every growth shrank the
+    towers the player had built, for a reason that had nothing to do with them.
+    """
     frame = node_run['frame']
-    assert frame['spanEmpty'] == pytest.approx(frame['spanFloor']), (
-        'an empty table must frame exactly as it did before there was anything to frame')
+    assert frame['spanEmpty'] == pytest.approx(frame['spanRun']), (
+        'an empty table must frame at the span the whole run was sized for')
+    assert frame['handDoesNotZoom'] is True, (
+        'placing a hand changed the zoom: the span must be the run\'s, not the moment\'s')
     assert frame['centreEmpty'] == pytest.approx(frame['midpoint'])
     assert frame['radiusShared'] is True, 'the discs and the lattice must measure the same epsilon'
     assert frame['covers'] is True, 'the frame does not hold every stack'
     assert frame['neverFurtherThanDouble'] is True, 'the view is zooming out with the hand'
 
 
-def test_the_view_makes_room_for_the_trail(node_run):
-    """The one place the system's own motion is visible is the landings behind the puck, so they
-    have to stay in the frame -- without the frame following them away from the puck."""
-    trail = node_run['trailFrame']
-    assert trail['emptyIsUnchanged'] is True, (
-        'a run with no rounds behind it must frame exactly as it did before the trail was a '
-        'consideration at all')
-    assert trail['grew'] is True, 'a landing off to one side did not widen the frame'
-    assert trail['centredOnTheHand'] is True, 'the trail moved the frame instead of widening it'
-    assert trail['holds'] is True, 'the frame does not hold a nearby landing'
-    assert trail['capped'] is True, (
-        'a distant landing ratcheted the frame past the same ceiling a stack is held to')
-    assert trail['stillCentred'] is True and trail['puckStillFramed'] is True, (
-        'a trail longer than the frame can show dragged the camera off the puck')
+def test_the_frame_is_sized_for_the_run_not_for_the_moment(node_run):
+    """Every step of the run fits inside one span, so the span never has to grow mid-run.
+
+    The failure this replaces: `past` (the trail) widened the frame each round, and the trail's
+    reach grows without bound on any table that drifts, so the frame followed it outwards until it
+    hit the old `2 * floor` ceiling. The towers rode that zoom all the way down.
+    """
+    run = node_run['runFrame']
+    assert run['coversEveryStep'] is True, 'the run frame does not hold every step of the run'
+    assert run['steady'] is True, 'the frame grew when the drift opened the gap'
+    assert run['wouldHaveBeenSmaller'] is True, (
+        'the test is not exercising a run whose gap actually varies')
 
 
-def test_a_new_round_has_three_beats(node_run):
-    """The hand leaves, the camera moves over an empty table, the hand arrives.
 
-    The middle beat is the point: a hand that slides while the camera swings is two things moving
-    at once, and the eye believes neither. So the hand is invisible for the whole of the camera's
-    move, and the stack it drew from is the one it left behind.
+
+def test_a_new_round_moves_the_hand_then_the_camera(node_run):
+    """Two beats, in that order: the hand travels, and only then does the camera follow.
+
+    It used to be the other way round -- the hand faded out, the camera moved over an empty table,
+    and the hand reappeared already in its new place -- so the one thing that had actually changed
+    was the one thing you could not see move. The samples below are the proof of the order: during
+    the slide the hand is halfway between the two anchors *and the camera has not moved*, and by
+    the camera beat the hand has arrived and stands still.
     """
     change = node_run['change']
-    assert change['leaving']['hand'] == 0, 'the hand was still visible as the camera started'
-    assert change['leaving']['active'] is True
-    assert change['leaving']['leaving'] >= 1, 'the hand that was on the table did not fade'
-    assert change['leaving']['leavingWhereItWas'] is True, 'it faded somewhere else'
-    assert change['leaving']['leavingOpaque'] == pytest.approx(1)
-    assert change['camera']['hand'] == 0, 'the hand was on screen while the camera moved'
-    assert change['camera']['leaving'] == 0, 'the old hand was still there during the move'
-    assert 0 < change['arriving']['hand'] < 1, 'the hand popped in rather than arriving'
-    assert change['arrived']['hand'] == 1
-    assert change['arrived']['leaving'] == 0
+    assert change['start']['active'] is True
+    assert change['start']['visible'] >= 1, 'the hand was hidden before the round even started'
+    assert change['start']['handAtOldAnchor'] is True, 'the hand started somewhere else'
+    assert change['start']['cameraHeld'] is True
+    assert change['slide']['handBetween'] is True, 'the hand jumped instead of travelling'
+    assert change['slide']['cameraHeld'] is True, (
+        'the camera moved while the hand was still travelling')
+    assert change['camera']['handArrived'] is True, 'the hand had not arrived when the camera moved'
+    assert change['camera']['cameraMoved'] is True, 'the camera never followed the hand'
+    assert change['camera']['centreAtTarget'] is True, 'the camera settled somewhere else'
     assert change['arrived']['active'] is False
+    # A round is a move, not a zoom: nothing in the transition may change the span.
+    assert change['spanUnchanged'] is True, 'the round changed the zoom'
+    assert change['oldHandGone'] is True, 'a kept hand faded out instead of travelling'
 
 
 def test_a_layout_that_is_not_kept_fades_where_it_stood(node_run):

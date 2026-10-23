@@ -9,11 +9,13 @@ probabilistic predictor that comes with a **floor** over every system you are wi
 <div class="frontdoor" markdown="1">
 <div class="frontdoor-col frontdoor-media" markdown="1">
 
-[![The game's six-step guided tour: turning on prediction, covering the gold noise support with stacks, raising one stack, dealing, and moving to the next round](assets/demo.gif)](examples/understand_ppsds_by_pmf_betting/index.md)
+<video class="game-demo" controls playsinline preload="metadata" poster="assets/media/game-demo-poster.png" aria-label="A 40-second narrated demo of the betting game: prediction on, the gold noise support covered with stacks, one stack raised, the deal, and the next round">
+<source src="assets/media/game-demo.mp4" type="video/mp4">
+Your browser cannot play this video. <a href="assets/media/game-demo.mp4">Download the 40-second demo</a>.
+</video>
 
-<a class="play-badge" href="examples/understand_ppsds_by_pmf_betting/" aria-label="Play the betting game">
-<span class="play-disc">▶</span>
-<span class="play-label">Play</span>
+<a class="play-badge" href="examples/understand_ppsds_by_pmf_betting/" aria-label="Go to the betting game">
+<span class="play-label">Play the game →</span>
 </a>
 
 </div>
@@ -75,7 +77,7 @@ Rows are **how far you want to go**. Columns are **what you start from**, ordere
 
 | **From →** | **A · Just curious**<br>Nothing yet. | **B · Build it yourself**<br>No environment. | **C · Your system**<br>You can step it. | **D · Data only**<br>No model or env. |
 |---|---|---|---|---|
-| **L0 · See** | <img src="assets/demo.gif" width="120" alt="the betting game"><br>[Just curious](examples/understand_ppsds_by_pmf_betting/index.md): see what a probabilistic prediction is in one minute. | — | — | — |
+| **L0 · See** | <img src="assets/media/game-demo-poster.png" width="120" alt="the betting game demo"><br>[Just curious](examples/understand_ppsds_by_pmf_betting/index.md): see what a probabilistic prediction is in one minute. | — | — | — |
 | **L1 · Use** | — | <img src="assets/papers.png" width="120" alt="The two papers' figures at one scale"><br>[Reproduce a paper](research/index.md): build the system from the paper and check its figures. | <img src="assets/acrobot_simulation.gif" width="120" alt="Acrobot in a rendered simulation"><br>[Use it on your system](examples/apply_drpp_to_your_own_env/index.md): put a predictor on a Gymnasium environment you already have. | [Only data](research/preliminaries.md#honest-limits): you need a system you can step; read the limits first. |
 | **L2 · Extend** | — | [Add a predictor kind](api.md): try a different prediction law in a simulation you build. | <img src="assets/drpp_ellipses.png" width="120" alt="Three 90% predictive ellipses"><br>[Add a family](tutorials/developer-guide.md): teach the library the uncertainty language your system needs. | — |
 | **L3 · Research** | — | [Work on the ceiling](research/probabilistic-predictability.md): scoring rules, predictability, and what no predictor can beat. | [Do research on the floor](research/preliminaries.md): change the assumptions, not just the implementation. | — |

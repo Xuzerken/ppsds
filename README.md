@@ -8,9 +8,9 @@
 <tr>
 <td>
 
-[<img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/demo.gif" width="480" alt="The game's six-step guided tour: turning on prediction, covering the gold noise support with stacks, raising one stack, dealing, and moving to the next round">](https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/)
+[<img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/media/game-demo-poster.png" width="480" alt="A 40-second narrated demo of the betting game: prediction on, the gold noise support covered with stacks, one stack raised, the deal, and the next round">](https://xuzerken.github.io/ppsds/assets/media/game-demo.mp4)
 
-**[▶ Play →](https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/)**
+**[▶ Watch the 40-second demo](https://xuzerken.github.io/ppsds/assets/media/game-demo.mp4)** · **[Play the game →](https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/)**
 
 </td>
 <td>
@@ -67,7 +67,7 @@ Rows are **how far you want to go**. Columns are **what you start from**, ordere
 
 | **From →** | **A · Just curious**<br>Nothing yet. | **B · Build it yourself**<br>No environment. | **C · Your system**<br>You can step it. | **D · Data only**<br>No model or env. |
 |---|---|---|---|---|
-| **L0 · See** | <img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/demo.gif" width="120" alt="the betting game"><br>[Just curious](https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/): see what a probabilistic prediction is in one minute. | — | — | — |
+| **L0 · See** | <img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/media/game-demo-poster.png" width="120" alt="the betting game demo"><br>[Just curious](https://xuzerken.github.io/ppsds/examples/understand_ppsds_by_pmf_betting/): see what a probabilistic prediction is in one minute. | — | — | — |
 | **L1 · Use** | — | <img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/papers.png" width="120" alt="The two papers' figures at one scale"><br>[Reproduce a paper](https://xuzerken.github.io/ppsds/research/): build the system from the paper and check its figures. | <img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/acrobot_simulation.gif" width="120" alt="Acrobot in a rendered simulation"><br>[Use it on your system](https://xuzerken.github.io/ppsds/examples/apply_drpp_to_your_own_env/): put a predictor on a Gymnasium environment you already have. | [Only data](https://xuzerken.github.io/ppsds/research/preliminaries/#honest-limits): you need a system you can step; read the limits first. |
 | **L2 · Extend** | — | [Add a predictor kind](https://xuzerken.github.io/ppsds/api/): try a different prediction law in a simulation you build. | <img src="https://raw.githubusercontent.com/Xuzerken/ppsds/main/docs/assets/drpp_ellipses.png" width="120" alt="Three 90% predictive ellipses"><br>[Add a family](https://xuzerken.github.io/ppsds/tutorials/developer-guide/): teach the library the uncertainty language your system needs. | — |
 | **L3 · Research** | — | [Work on the ceiling](https://xuzerken.github.io/ppsds/research/probabilistic-predictability/): scoring rules, predictability, and what no predictor can beat. | [Do research on the floor](https://xuzerken.github.io/ppsds/research/preliminaries/): change the assumptions, not just the implementation. | — |

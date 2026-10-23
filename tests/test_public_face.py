@@ -47,7 +47,13 @@ BRANCH_LABELS = ('just curious', 'build it yourself', 'your system',
 INSTALL_DEADLINE = 40
 
 IMAGE_RE = re.compile(r'!?\[[^\]]*\]\((?:<)?([^)>\s]+)(?:>)?\)|<img[^>]+src="([^"]+)"')
+#: ``src``/``poster`` attributes of the elements that carry media. The README cannot embed a
+#: ``<video>`` at all (GitHub's sanitiser strips the tag unless the file was uploaded as an
+#: attachment), so it shows the poster and links to the MP4, while the site plays it. Both
+#: spellings still have to resolve to a file the export actually carries.
+MEDIA_SRC_RE = re.compile(r'<(?:img|source|video)[^>]+(?:src|poster)="([^"]+)"')
 FENCE_RE = re.compile(r'^```(\w*)', re.MULTILINE)
+ASSET_SUFFIXES = ('.png', '.gif', '.svg', '.mp4', '.webm')
 
 
 def text_of(path: Path) -> str:
@@ -88,7 +94,7 @@ def test_both_front_doors_link_to_the_game(path):
     funnel gone."""
     text = text_of(path)
     assert 'understand_ppsds_by_pmf_betting' in text, f'{path.name} does not link to the game'
-    assert 'demo.gif' in text, f'{path.name} does not show the animation'
+    assert 'game-demo' in text, f'{path.name} does not show the demo'
 
 
 # ----------------------------------------------------------------------
@@ -126,12 +132,27 @@ def test_the_first_code_block_is_something_you_can_run():
 # ----------------------------------------------------------------------
 
 def referenced_assets(text: str) -> set[str]:
+    """Every asset a page references, as a path relative to ``docs/assets/``.
+
+    The README points at absolute URLs (GitHub and PyPI resolve nothing relative) while site
+    pages point at ``assets/...``; both spellings are folded to the same path so the existence
+    check below tests the file the export actually carries. Paths matter now that the demo lives
+    in ``docs/assets/media/``: keeping only the basename would look for it at the top of the
+    asset directory and report a false failure.
+    """
+    targets = [match.group(1) or match.group(2) for match in IMAGE_RE.finditer(text)]
+    targets += MEDIA_SRC_RE.findall(text)
     names = set()
-    for match in IMAGE_RE.finditer(text):
-        target = match.group(1) or match.group(2) or ''
-        name = target.rsplit('/', 1)[-1]
-        if name.endswith(('.png', '.gif', '.svg')):
-            names.add(name)
+    for target in targets:
+        if not target.lower().endswith(ASSET_SUFFIXES):
+            continue
+        for marker in ('docs/assets/', '/assets/', 'assets/'):
+            if marker in target:
+                target = target.split(marker, 1)[1]
+                break
+        else:
+            continue
+        names.add(target)
     return names
 
 
@@ -140,6 +161,30 @@ def test_every_figure_the_front_doors_reference_exists():
     for path in (README, SITE_HOME):
         for name in referenced_assets(text_of(path)):
             assert (ASSETS / name).is_file(), f'{path.name} references {name}, which does not exist'
+
+
+#: The front page's hero. Not a figure: it is a narrated recording made outside this repository
+#: (see the README of the talks project), so it has no generator here and lives under ``media/``.
+DEMO_MEDIA = ('game-demo.mp4', 'game-demo-poster.png')
+
+
+@pytest.mark.parametrize('name', DEMO_MEDIA)
+def test_the_demo_media_ships_with_the_front_doors(name):
+    path = ASSETS / 'media' / name
+    assert path.is_file(), f'{name} is missing from docs/assets/media'
+    assert path.stat().st_size > 10_000, f'{name} is suspiciously small'
+
+
+def test_the_site_plays_the_demo_and_the_readme_offers_it():
+    """One demo, two renderers: the site plays the video; GitHub strips ``<video>``, so the README
+    shows its poster and links to the MP4. Both front doors must offer the demo one way or the
+    other -- a front door that lost it is the whole funnel gone."""
+    site = text_of(SITE_HOME)
+    assert '<video' in site, 'the site home page no longer embeds the demo video'
+    assert 'media/game-demo.mp4' in site, 'the site video does not point at the MP4'
+    readme = text_of(README)
+    assert 'media/game-demo.mp4' in readme, 'the README no longer links to the demo video'
+    assert 'media/game-demo-poster.png' in readme, 'the README shows no poster for the demo'
 
 
 def assets_mkdocs_loads() -> set[str]:

@@ -23,6 +23,8 @@ venv/
 # purpose. Without the negation the export to this repository would copy them and `git add -A`
 # would not stage them -- a 404 with every gate green.
 !docs/assets/*.png
+# One level deeper: the demo video's poster frame. A negation does not recurse.
+!docs/assets/media/*.png
 
 # -- Build artifacts (python -m build / pip install -e .) --
 dist/

@@ -52,16 +52,17 @@ FIGURES = {
 #: for (a committed asset the exporter silently leaves behind) has nothing to do with the builder.
 #: They are kept out of :data:`FIGURES` only so the slow shape test does not try to run them:
 #:
-#: * ``demo.gif`` is a **recording of the live page** (``tools/make_demo_gif.py``), and needs a
-#:   browser.
 #: * ``papers.png``, ``paper-predictability.png`` and ``paper-drpp.png`` are **tiled from the
 #:   papers' own PDFs** (``tools/make_paper_figures.py``), and need ghostscript plus the private
 #:   ``papers/`` tree, which the published repository does not carry. Their inputs are vector
 #:   figures that cannot go stale, which is why they are rasterisations of them rather than a
 #:   re-drawing of our own.
 #: * ``map.png`` is drawn by ``tools/make_map_figure.py``. It is a design asset, not a result.
-MAINTAINER_BUILT = ('demo.gif', 'papers.png', 'paper-predictability.png', 'paper-drpp.png',
-                    'map.png')
+#: * ``media/game-demo-poster.png`` is a frame of the narrated demo, recorded in the talks project
+#:   (outside this repository). The MP4 beside it is checked by
+#:   :func:`test_the_demo_video_reaches_the_export`.
+MAINTAINER_BUILT = ('papers.png', 'paper-predictability.png', 'paper-drpp.png', 'map.png',
+                    'media/game-demo-poster.png')
 
 #: Everything that has to be a real, exportable image, whichever way it was built.
 IMAGES = tuple(sorted(set(FIGURES) | set(MAINTAINER_BUILT)))
@@ -132,6 +133,21 @@ def test_each_figure_would_actually_be_exported(name):
     assert f'docs/assets/{name}' in ep.iter_export(), (
         f'{name} is committed but would not be exported -- the published page would show a broken '
         f'image while `--check` reported a match')
+
+
+def test_the_demo_video_reaches_the_export():
+    """The front page's demo is not an image, so it is outside the parametrised checks above --
+    but it has the same silent failure: ``.mp4`` is not excluded today, and the day someone adds
+    it to ``EXCLUDED_SUFFIXES`` (binary formats the leak scan cannot read) the published page
+    would show a dead player while ``--check`` reported a match."""
+    tools = REPO_ROOT / 'tools'
+    if not (tools / 'export_public.py').is_file():
+        pytest.skip('tools/export_public.py is not in this tree')
+    sys.path.insert(0, str(tools))
+    import export_public as ep
+
+    assert 'docs/assets/media/game-demo.mp4' in ep.iter_export(), (
+        'the demo video is committed but would not be exported')
 
 
 @pytest.mark.slow

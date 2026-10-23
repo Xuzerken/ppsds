@@ -105,10 +105,18 @@
   margin: 0;
 }
 
-.frontdoor img {
+.frontdoor img,
+.frontdoor video {
   display: block;
   width: 100%;
   height: auto;
+}
+
+/* The demo has narration, so it deliberately does not autoplay: the poster holds the frame the
+ * tour starts from until the reader presses play. Native controls stay at the bottom, out of the
+ * way of the play badge above. */
+.frontdoor video {
+  background: #111;
 }
 
 /* Material wraps every table in two runtime divs and gives the outer one a vertical margin.
@@ -150,9 +158,11 @@
 }
 
 
-/* The front page's one call to action: the whole animation is the target, and the disc sits over
- * its centre like a video's play control. A dark disc rather than a coloured pill, because the
- * animation is already a dark green surface and the disc only has to say "this is playable". */
+/* The front page's one call to action: the badge sits over the demo and links to the game. It is
+ * deliberately *not* in the centre -- that is where the video's own play control belongs, and a
+ * second control in the same place would be ambiguous. A dark pill rather than a coloured
+ * button, and an arrow rather than a play glyph, so it reads as "leave for the game" and not as
+ * a second way to start the video. */
 .frontdoor-media {
   position: relative;
 }
@@ -160,31 +170,17 @@
 .play-badge {
   position: absolute;
   top: 0.8rem;
-  left: 50%;
-  transform: translateX(-50%);
+  right: 0.8rem;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.28rem 0.65rem 0.28rem 0.32rem;
+  padding: 0.28rem 0.65rem;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.6);
   color: #fff;
   text-decoration: none;
   opacity: 0.72;
   transition: background 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
-}
-
-.play-disc {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  padding-left: 0.1rem;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
-  color: #111;
-  font-size: 0.8rem;
 }
 
 .play-label {
@@ -194,18 +190,18 @@
 }
 
 .play-badge:hover {
-  transform: translateX(-50%) scale(1.06);
+  transform: scale(1.06);
   background: rgba(0, 0, 0, 0.82);
   opacity: 1;
 }
 
-/* Dim the rest of the animation while the entry is hovered, so the control stands out without a
+/* Dim the rest of the media while the entry is hovered, so the control stands out without a
  * permanent scrim over the content. */
-.frontdoor-media img {
+.frontdoor-media :is(img, video) {
   transition: filter 0.2s ease;
 }
 
-.frontdoor-media:has(.play-badge:hover) img {
+.frontdoor-media:has(.play-badge:hover) :is(img, video) {
   filter: brightness(0.55);
 }
 

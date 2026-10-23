@@ -37,9 +37,12 @@ import { TOUR_STEPS, createTutorial, tourSpot, tutorialNext, tutorialReady,
 const PATH_STEPS = 5;
 
 /** How many rounds a run lasts, and the default. The replays are exported long enough for the
- *  longest of them (`EXPORT_STEPS` on the Python side), so this is a choice, not a limit. */
+ *  longest of them (`EXPORT_STEPS` on the Python side), so this is a choice, not a limit.
+ *
+ *  Ten is the default because that is about how long a first visit lasts: twenty was long enough
+ *  that a player met the end of the run as a surprise rather than as a result. */
 export const RUN_LENGTHS = [10, 20, 30, 50];
-export const DEFAULT_RUN_LENGTH = 20;
+export const DEFAULT_RUN_LENGTH = 10;
 
 /** The two ways the table can be drawn, in the order the picker offers them. It is a setting and not
  *  a fallback: a reader on a machine without a GPU, or one who wants the table legible at a glance,

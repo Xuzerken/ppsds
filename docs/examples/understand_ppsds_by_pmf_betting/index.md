@@ -4,8 +4,24 @@ The fastest way to see what this package is about is to play it. The page below 
 with the abstraction removed: a puck moves around a table, you put stacks where you think it will
 land next, the dealer drops a ball, and every stack within `epsilon` of the landing pays its share.
 
-<iframe src="game/index.html" title="Place your bets" allow="fullscreen"
-        style="width:100%;height:900px;aspect-ratio:16/11;border:1px solid #ccc;border-radius:8px"
+<style>
+  /* The frame is the only interactive thing on this page, and its height is a reading decision as
+     much as a playing one. On a phone a fixed 900 px frame is the *entire* screen: the only way
+     left to scroll the article is to start the drag on the frame, and the game reads a drag as a
+     turn of the camera -- so the reader trying to get to the text below ends up rotating the table.
+     Small screens therefore get a share of the viewport instead of a fixed height, which leaves
+     the article enough room to be scrolled by, and the frame is one press of Full screen away from
+     the whole window. A mouse does not have that problem, so the desktop height stays fixed. */
+  .game-frame {
+    display: block; width: 100%; height: 900px;
+    border: 1px solid #ccc; border-radius: 8px;
+  }
+  @media (max-width: 700px) { .game-frame { height: 66dvh; } }
+  /* Sideways on a phone: the frame is what is short, not the reading column. */
+  @media (max-height: 520px) { .game-frame { height: 74dvh; } }
+</style>
+
+<iframe class="game-frame" src="game/index.html" title="Place your bets" allow="fullscreen"
         loading="lazy"></iframe>
 
 If the frame does not load, open
@@ -230,7 +246,7 @@ as far as that frame holds and clipped past its edge.
 round**, in the panel with it, moves on after a pause without touching your hand. **Auto deal** is
 the play button beside Deal: press it and the page deals, settles and deals again on your last hand
 until the run ends; the triangle becomes two bars, and pressing it again pauses. A run is a fixed
-number of rounds — ten to fifty, twenty by default. It ends when the rounds
+number of rounds — ten to fifty, ten by default. It ends when the rounds
 run out, or the moment a round pays nothing: `log(0)` is `-inf`, and the run stops there rather
 than being averaged into the next round. When it ends the page stops with it and shows what the run
 amounted to: the average score, the best and worst rounds, and each hand you played with what it

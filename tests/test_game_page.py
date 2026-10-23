@@ -251,16 +251,17 @@ result.replay = {
   draws: play.view(0).history.draws,
 };
 
-// 3b. A shorter run: the length is a choice, and the page must play exactly that many rounds.
-play.setRunLength(10);
+// 3b. A run of a length the player picked: the length is a choice, and the page must play exactly
+//     that many rounds. 30 on purpose -- a length equal to the default would prove nothing.
+play.setRunLength(30);
 play.coverTable();
-let shortRounds = 0;
-while (play.state.phase !== 'over' && shortRounds < 50) {
+let chosenRounds = 0;
+while (play.state.phase !== 'over' && chosenRounds < 50) {
   if (play.state.phase === 'settled') { play.nextRound(); play.coverTable(); }
   play.deal(0);
-  if (play.settle(game.THROW_MS)) shortRounds += 1;
+  if (play.settle(game.THROW_MS)) chosenRounds += 1;
 }
-result.shortRun = { rounds: shortRounds, declared: play.stepCount(), planned: play.runSummary().planned };
+result.chosenRun = { rounds: chosenRounds, declared: play.stepCount(), planned: play.runSummary().planned };
 
 // 3c. A table that keeps its law: no verdict, no layout built from the thing that is hidden.
 play.selectTable('house_rules');
@@ -1777,8 +1778,11 @@ def test_a_run_ends_and_says_why(node_run):
     # definition -- the assertion is here so that a change to either side has to face the other.
     assert summary['compoundRoi'] == pytest.approx(summary['geometricMeanRoi'])
     assert summary['hands'] == 1, 'the safe layout is one hand, played every round'
-    # The hand is the safe layout: four equal tiles, played in all 20 rounds.
-    assert '4 stacks x20' in summary['distinctHandNames'][0]
+    # The hand is the safe layout: four equal tiles, played in every round of the run. The count
+    # comes from the run rather than from a literal: the default length is a product decision and
+    # has already changed once (20 -> 10), which a hardcoded "x20" turns into a broken test rather
+    # than a passing one that says what it means.
+    assert f"4 stacks x{summary['rounds']}" in summary['distinctHandNames'][0]
     assert 1 <= summary['bestRound'] <= summary['rounds']
     assert 1 <= summary['worstRound'] <= summary['rounds']
     assert summary['gapToPar'] == pytest.approx(0.0, abs=1e-9), 'the safe layout sits on par'
@@ -1786,10 +1790,10 @@ def test_a_run_ends_and_says_why(node_run):
 
 def test_a_run_can_be_however_long_the_player_asked_for(node_run):
     """The length is a choice now, and it is capped by the replay rather than by a constant."""
-    short = node_run['shortRun']
-    assert short['declared'] == 10
-    assert short['rounds'] == 10
-    assert short['planned'] == 10
+    chosen = node_run['chosenRun']
+    assert chosen['declared'] == 30
+    assert chosen['rounds'] == 30
+    assert chosen['planned'] == 30
 
 
 def test_a_table_that_keeps_its_law_gives_no_verdict_and_no_free_layout(node_run):
